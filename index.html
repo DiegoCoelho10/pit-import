@@ -367,12 +367,12 @@ const { useState, useEffect, useRef, useCallback, createContext, useContext } = 
 // FIREBASE CONFIG — SUBSTITUA PELAS SUAS CREDENCIAIS
 // ============================================================
 const FIREBASE_CONFIG = {
-  apiKey: "SUA_API_KEY_AQUI",
-  authDomain: "SEU_PROJECT_ID.firebaseapp.com",
-  projectId: "SEU_PROJECT_ID",
-  storageBucket: "SEU_PROJECT_ID.appspot.com",
-  messagingSenderId: "SEU_SENDER_ID",
-  appId: "SEU_APP_ID"
+  apiKey: "AIzaSyDiN8LDHLuXBetS2sVrLFPIjSKWop5kuPU",
+  authDomain: "pit-import.firebaseapp.com",
+  projectId: "pit-import",
+  storageBucket: "pit-import.firebasestorage.app",
+  messagingSenderId: "738264349705",
+  appId: "1:738264349705:web:f56fed0b2d2cb4165cccd8"
 };
 
 // Detecta se Firebase está configurado
@@ -656,6 +656,32 @@ const MOTIVATIONAL = [
 // ============================================================
 // BARCODE SCANNER COMPONENT
 // ============================================================
+function bipScanner() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Tom 1 — bip curto agudo
+    const o1 = ctx.createOscillator();
+    const g1 = ctx.createGain();
+    o1.type = 'sine';
+    o1.frequency.value = 1800;
+    g1.gain.setValueAtTime(0, ctx.currentTime);
+    g1.gain.linearRampToValueAtTime(0.6, ctx.currentTime + 0.01);
+    g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    o1.connect(g1); g1.connect(ctx.destination);
+    o1.start(ctx.currentTime); o1.stop(ctx.currentTime + 0.12);
+    // Tom 2 — confirmação mais grave
+    const o2 = ctx.createOscillator();
+    const g2 = ctx.createGain();
+    o2.type = 'sine';
+    o2.frequency.value = 1200;
+    g2.gain.setValueAtTime(0, ctx.currentTime + 0.1);
+    g2.gain.linearRampToValueAtTime(0.4, ctx.currentTime + 0.12);
+    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    o2.connect(g2); g2.connect(ctx.destination);
+    o2.start(ctx.currentTime + 0.1); o2.stop(ctx.currentTime + 0.25);
+  } catch(e) {}
+}
+
 function BarcodeScanner({ onDetect, onClose }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -684,6 +710,7 @@ function BarcodeScanner({ onDetect, onClose }) {
               if (barcodes.length > 0) {
                 clearInterval(intervalId);
                 stopCamera();
+                bipScanner();
                 onDetect(barcodes[0].rawValue);
               }
             } catch(e) {}
@@ -712,6 +739,7 @@ function BarcodeScanner({ onDetect, onClose }) {
           if (result) {
             codeReader.reset();
             stopCamera();
+            bipScanner();
             onDetect(result.getText());
           }
         });
