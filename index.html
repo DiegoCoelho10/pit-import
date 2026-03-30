@@ -83,8 +83,8 @@ a{text-decoration:none;color:inherit}
 .bnav-item.active .bnav-icon,.bnav-item.active .bnav-label{color:#fff}
 .bnav-icon{font-size:18px;color:#444}
 .bnav-label{font-size:9px;color:#444;letter-spacing:.5px;text-transform:uppercase}
-.bnav-more-menu{position:fixed;bottom:70px;right:12px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:var(--rl);padding:8px 0;z-index:200;min-width:200px;box-shadow:0 -8px 32px rgba(0,0,0,.6)}
-.bnav-more-item{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;color:#888;font-size:13px;transition:var(--t)}
+.bnav-more-menu{position:fixed;bottom:60px;left:0;right:0;background:#1a1a1a;border-top:1px solid #2a2a2a;border-radius:var(--rl) var(--rl) 0 0;padding:0;z-index:200;max-height:70vh;overflow-y:auto;box-shadow:0 -8px 32px rgba(0,0,0,.6)}
+.bnav-more-item{display:flex;align-items:center;gap:12px;padding:13px 20px;cursor:pointer;color:#888;font-size:13px;transition:var(--t)}
 .bnav-more-item:hover,.bnav-more-item.active{color:#fff;background:rgba(255,255,255,.05)}
 .top-bar{height:52px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;background:var(--card-bg);flex-shrink:0}
 .top-bar h2{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:var(--text)}
@@ -1037,17 +1037,34 @@ function MainApp() {
             <>
               <div style={{position:'fixed',inset:0,zIndex:199}} onClick={()=>setShowMore(false)}/>
               <div className="bnav-more-menu">
-                {(currentUser.role==='admin'?ADMIN_MENU:SELLER_MENU).filter(m=>!bottomItems.find(b=>b.id===m.id)&&m.id!=='more').map(m=>(
-                  <div key={m.id} className={`bnav-more-item ${page===m.id?'active':''}`} onClick={()=>navigateTo(m.id)}>
-                    <span style={{fontSize:16}}>{m.icon}</span><span>{m.label}</span>
+                {/* Alça de arrastar visual */}
+                <div style={{width:36,height:4,background:'var(--bg5)',borderRadius:2,margin:'10px auto 6px',flexShrink:0}}/>
+
+                {/* Itens de navegação */}
+                <div style={{padding:'0 0 4px'}}>
+                  {(currentUser.role==='admin'?ADMIN_MENU:SELLER_MENU).filter(m=>!bottomItems.find(b=>b.id===m.id)&&m.id!=='more').map(m=>(
+                    <div key={m.id} className={`bnav-more-item ${page===m.id?'active':''}`} onClick={()=>navigateTo(m.id)}>
+                      <span style={{fontSize:16,width:22,textAlign:'center'}}>{m.icon}</span><span>{m.label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Seção Configurações */}
+                <div style={{padding:'8px 20px 4px',fontSize:9,letterSpacing:3,textTransform:'uppercase',color:'var(--g2)',borderTop:'1px solid var(--bg5)',marginTop:4}}>Configurações</div>
+                <div className="bnav-more-item" onClick={()=>{setShowMore(false);setShowPassModal(true)}}><span style={{width:22,textAlign:'center'}}>🔑</span><span>Alterar Senha</span></div>
+                <div className="bnav-more-item" onClick={()=>{setShowMore(false);toggleTheme()}}><span style={{width:22,textAlign:'center'}}>{theme==='dark'?'☀️':'🌙'}</span><span>{theme==='dark'?'Tema Claro':'Tema Escuro'}</span></div>
+                <div className="bnav-more-item" onClick={()=>{setShowMore(false);setDevice(null)}}><span style={{width:22,textAlign:'center'}}>🖥️</span><span>Trocar Dispositivo</span></div>
+                {currentUser.role==='admin'&&<div className="bnav-more-item" style={{color:'var(--danger)'}} onClick={()=>{setShowMore(false);setShowResetModal(true)}}><span style={{width:22,textAlign:'center'}}>🗑</span><span>Resetar Sistema</span></div>}
+
+                {/* Sair */}
+                <div style={{borderTop:'1px solid var(--bg5)',marginTop:4}}>
+                  <div className="bnav-more-item" style={{color:'var(--danger)',padding:'14px 20px'}} onClick={()=>setCurrentUser(null)}>
+                    <span style={{width:22,textAlign:'center'}}>→</span><span>Sair</span>
                   </div>
-                ))}
-                <div style={{height:1,background:'var(--bg5)',margin:'4px 0'}}/>
-                <div className="bnav-more-item" onClick={()=>{setShowMore(false);setShowPassModal(true)}}><span>🔑</span><span>Alterar Senha</span></div>
-                <div className="bnav-more-item" onClick={()=>{setShowMore(false);toggleTheme()}}><span>{theme==='dark'?'☀️':'🌙'}</span><span>Alternar Tema</span></div>
-                <div className="bnav-more-item" onClick={()=>{setShowMore(false);setDevice(null)}}><span>🖥️</span><span>Trocar Dispositivo</span></div>
-                {currentUser.role==='admin'&&<div className="bnav-more-item" style={{color:'var(--danger)'}} onClick={()=>{setShowMore(false);setShowResetModal(true)}}><span>🗑</span><span>Resetar Sistema</span></div>}
-                <div className="bnav-more-item" style={{color:'var(--danger)'}} onClick={()=>setCurrentUser(null)}><span>→</span><span>Sair</span></div>
+                </div>
+
+                {/* Espaço para não ficar colado na nav */}
+                <div style={{height:8}}/>
               </div>
             </>
           )}
