@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>PIT IMPORT – Sistema de Gestão</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏪</text></svg>">
-
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -25,7 +24,6 @@ a{text-decoration:none;color:inherit}
 ::-webkit-scrollbar{width:3px;height:3px}
 ::-webkit-scrollbar-track{background:var(--bg3)}
 ::-webkit-scrollbar-thumb{background:var(--g1);border-radius:2px}
-
 :root{
   --bg:#0a0a0a;--bg2:#111;--bg3:#1a1a1a;--bg4:#222;--bg5:#2d2d2d;
   --g1:#3a3a3a;--g2:#555;--g3:#888;--g4:#aaa;--g5:#ccc;
@@ -236,6 +234,23 @@ tr:hover td{background:var(--bg3)}
 @keyframes scanLine{0%{top:0}100%{top:100%}}
 .scanner-label{font-size:11px;color:var(--g3);text-align:center;margin-top:8px;letter-spacing:1px}
 .scanner-section{background:var(--bg3);border:1px solid var(--bg5);border-radius:var(--r);padding:12px;margin-top:10px}
+/* NOVO: Confirm Modal */
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;z-index:2000;padding:20px;backdrop-filter:blur(6px)}
+.confirm-box{background:var(--bg2);border:1px solid var(--bg5);border-radius:var(--rl);width:100%;max-width:380px;padding:32px 28px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.7)}
+.confirm-icon{font-size:42px;margin-bottom:14px;display:block}
+.confirm-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:var(--text);margin-bottom:8px}
+.confirm-msg{font-size:13px;color:var(--g3);line-height:1.6;margin-bottom:24px}
+.confirm-btns{display:flex;gap:10px;justify-content:center}
+/* NOVO: Drag & Drop imagem produto */
+.img-dropzone{border:2px dashed var(--bg5);border-radius:var(--rl);padding:24px 16px;text-align:center;cursor:pointer;transition:var(--t);position:relative;overflow:hidden;min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+.img-dropzone:hover,.img-dropzone.drag-over{border-color:var(--g3);background:rgba(255,255,255,.03)}
+.img-dropzone img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:calc(var(--rl) - 2px)}
+.img-dropzone-label{font-size:11px;color:var(--g3);letter-spacing:1px;z-index:1}
+.img-dropzone-icon{font-size:28px;opacity:.4;z-index:1}
+.img-dropzone-overlay{position:absolute;inset:0;background:rgba(0,0,0,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;opacity:0;transition:var(--t);z-index:2}
+.img-dropzone:hover .img-dropzone-overlay{opacity:1}
+/* NOVO: pagamento múltiplo */
+.pay-method-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg3);border-radius:var(--r);margin-bottom:6px}
 .is-mobile .sidebar{display:none!important}
 .is-mobile .bottom-nav{display:flex!important}
 .is-mobile .mobile-header{display:flex!important}
@@ -285,6 +300,57 @@ const INITIAL_SELLERS = [
   { id:'ADM', name:'ADM', role:'admin', store:'Todos', photo:null, active:true, password:'Pit2026' },
 ];
 
+// ===== CONFIRM MODAL GLOBAL =====
+function ConfirmModal({ icon='⚠️', titulo, msg, btnLabel='Confirmar', btnClass='btn-danger', onConfirm, onCancel }) {
+  return (
+    <div className="confirm-overlay">
+      <div className="confirm-box">
+        <span className="confirm-icon">{icon}</span>
+        <div className="confirm-title">{titulo}</div>
+        <div className="confirm-msg">{msg}</div>
+        <div className="confirm-btns">
+          <button className="btn btn-outline" onClick={onCancel}>Cancelar</button>
+          <button className={`btn ${btnClass}`} onClick={onConfirm}>{btnLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== IMAGE DROPZONE =====
+function ImgDropzone({ value, onChange }) {
+  const [drag, setDrag] = useState(false);
+  const ref = useRef();
+  const process = (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = ev => onChange(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+  return (
+    <div
+      className={`img-dropzone ${drag ? 'drag-over' : ''}`}
+      onClick={() => ref.current?.click()}
+      onDragOver={e => { e.preventDefault(); setDrag(true); }}
+      onDragLeave={() => setDrag(false)}
+      onDrop={e => { e.preventDefault(); setDrag(false); process(e.dataTransfer.files[0]); }}
+    >
+      {value && <img src={value} alt="produto" />}
+      <span className="img-dropzone-icon">🖼️</span>
+      <span className="img-dropzone-label">{value ? 'Arraste ou clique para trocar' : 'Arraste ou clique para adicionar foto'}</span>
+      {value && (
+        <div className="img-dropzone-overlay">
+          <span style={{fontSize:22}}>📷</span>
+          <span style={{fontSize:11,color:'#fff',letterSpacing:1}}>TROCAR FOTO</span>
+          <button style={{marginTop:6,background:'rgba(255,68,68,.3)',border:'1px solid rgba(255,68,68,.5)',borderRadius:'var(--r)',padding:'4px 10px',color:'#ff6666',fontSize:10,cursor:'pointer'}}
+            onClick={e=>{e.stopPropagation();onChange(null);}}>✕ REMOVER</button>
+        </div>
+      )}
+      <input ref={ref} type="file" accept="image/*" style={{display:'none'}} onChange={e => process(e.target.files[0])} />
+    </div>
+  );
+}
+
 function useFirestore(collection, setData) {
   const [connected, setConnected] = useState(false);
   useEffect(() => {
@@ -315,17 +381,26 @@ function AppProvider({ children }) {
   const [goals, setGoalsRaw] = useState([]);
   const [history, setHistory] = useState([]);
   const [returns, setReturnsRaw] = useState([]);
+  const [clients, setClientsRaw] = useState([]);
   const [toasts, setToasts] = useState([]);
   const [theme, setTheme] = useState('dark');
   const [device, setDevice] = useState(null);
   const [firebaseStatus, setFirebaseStatus] = useState({ connected: false, configured: FIREBASE_CONFIGURED });
 
-  const { saveDoc: saveSeller } = useFirestore('sellers', setSellersRaw);
+  const { saveDoc: saveSeller } = useFirestore('sellers', (data) => {
+    // FIX BUG 8: merge com INITIAL_SELLERS, garantindo que ADM sempre existe
+    setSellersRaw(prev => {
+      const merged = [...INITIAL_SELLERS];
+      data.forEach(d => { if (!merged.find(m => m.id === d.id)) merged.push(d); else { const idx = merged.findIndex(m => m.id === d.id); merged[idx] = d; } });
+      return merged;
+    });
+  });
   const { saveDoc: saveProduct, deleteDoc: deleteProduct } = useFirestore('products', setProductsRaw);
-  const { saveDoc: saveSale } = useFirestore('sales', setSalesRaw);
+  const { saveDoc: saveSale, deleteDoc: deleteSaleDoc } = useFirestore('sales', setSalesRaw);
   const { saveDoc: saveExpense, deleteDoc: deleteExpense } = useFirestore('expenses', setExpensesRaw);
   const { saveDoc: saveGoal, connected: fbConnected } = useFirestore('goals', setGoalsRaw);
   const { saveDoc: saveReturn } = useFirestore('returns', setReturnsRaw);
+  const { saveDoc: saveClient, deleteDoc: deleteClientDoc } = useFirestore('clients', setClientsRaw);
 
   useEffect(() => setFirebaseStatus({ connected: fbConnected, configured: FIREBASE_CONFIGURED }), [fbConnected]);
 
@@ -353,6 +428,11 @@ function AppProvider({ children }) {
     });
   }, [saveSale]);
 
+  const deleteSale = useCallback((id) => {
+    setSalesRaw(prev => prev.filter(s => s.id !== id));
+    if (FIREBASE_CONFIGURED && db) deleteSaleDoc(id);
+  }, [deleteSaleDoc]);
+
   const setExpenses = useCallback((updOrFn) => {
     setExpensesRaw(prev => {
       const next = typeof updOrFn === 'function' ? updOrFn(prev) : updOrFn;
@@ -377,6 +457,19 @@ function AppProvider({ children }) {
     });
   }, [saveReturn]);
 
+  const setClients = useCallback((updOrFn) => {
+    setClientsRaw(prev => {
+      const next = typeof updOrFn === 'function' ? updOrFn(prev) : updOrFn;
+      if (FIREBASE_CONFIGURED && db) next.forEach(c => saveClient(c.id, c));
+      return next;
+    });
+  }, [saveClient]);
+
+  const deleteClient = useCallback((id) => {
+    setClientsRaw(prev => prev.filter(c => c.id !== id));
+    if (FIREBASE_CONFIGURED && db) deleteClientDoc(id);
+  }, [deleteClientDoc]);
+
   const updateCurrentUser = useCallback((updatedSellers) => {
     setSellers(updatedSellers);
     setCurrentUser(prev => prev ? updatedSellers.find(s => s.id === prev.id) || prev : prev);
@@ -397,8 +490,9 @@ function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       currentUser, setCurrentUser, sellers, setSellers, updateCurrentUser,
-      products, setProducts, sales, setSales, expenses, setExpenses,
+      products, setProducts, sales, setSales, deleteSale, expenses, setExpenses,
       goals, setGoals, history, setHistory, returns, setReturns,
+      clients, setClients, deleteClient,
       toasts, addToast, addMovement, theme, toggleTheme, device, setDevice, firebaseStatus,
     }}>
       <div className={`${theme==='light'?'light':''} ${device?'is-'+device:''}`} style={{height:'100%'}}>
@@ -513,12 +607,17 @@ function DeviceSelector() {
   );
 }
 
+// FIX ITEM 5: login funciona por nome OU id, case-insensitive, ignorando espaços
 function Login() {
   const { sellers, setCurrentUser, addToast, setDevice } = useContext(AppContext);
   const [user, setUser] = useState(''), [pass, setPass] = useState(''), [err, setErr] = useState(''), [loading, setLoading] = useState(false);
   const login = async () => {
     setLoading(true);
-    const found = sellers.find(s => s.name.toLowerCase().replace(/\s/g,'')===user.toLowerCase().replace(/\s/g,'') || s.id===user);
+    const normalize = s => (s||'').toLowerCase().replace(/\s+/g,'');
+    const found = sellers.find(s =>
+      normalize(s.name) === normalize(user) ||
+      normalize(s.id) === normalize(user)
+    );
     if (!found) { setErr('Usuário não encontrado'); setLoading(false); return; }
     if (found.password !== pass) { setErr('Senha incorreta'); setLoading(false); return; }
     if (!found.active) { setErr('Usuário inativo'); setLoading(false); return; }
@@ -535,7 +634,7 @@ function Login() {
         </div>
         <FirebaseBanner/>
         <div className="login-form">
-          <div className="field-group"><label>Usuário / ID</label><input className="field-input" value={user} onChange={e=>setUser(e.target.value)} placeholder="ADM ou Nome" onKeyDown={e=>e.key==='Enter'&&login()} autoFocus/></div>
+          <div className="field-group"><label>Usuário</label><input className="field-input" value={user} onChange={e=>setUser(e.target.value)} placeholder="Nome ou ID" onKeyDown={e=>e.key==='Enter'&&login()} autoFocus/></div>
           <div className="field-group"><label>Senha</label><input className="field-input" type="password" value={pass} onChange={e=>{setPass(e.target.value);setErr('')}} placeholder="••••••••" onKeyDown={e=>e.key==='Enter'&&login()}/></div>
           {err && <p className="login-error">⚠ {err}</p>}
           <button className="btn-primary" onClick={login} disabled={loading} style={{opacity:loading?.7:1}}>{loading?'ENTRANDO...':'ENTRAR'}</button>
@@ -574,6 +673,7 @@ function ChangePasswordModal({ onClose }) {
     </div></div>
   );
 }
+
 const ADMIN_MENU = [
   {id:'dashboard',label:'Dashboard',icon:'◈',section:'Visão Geral'},
   {id:'sales-month',label:'Vendas do Mês',icon:'◉',section:'Visão Geral'},
@@ -582,6 +682,7 @@ const ADMIN_MENU = [
   {id:'returns',label:'Devoluções',icon:'↩',section:'Vendas'},
   {id:'receivables',label:'A Receber',icon:'◎',section:'Vendas'},
   {id:'stock',label:'Estoque',icon:'▦',section:'Produtos'},
+  {id:'clients',label:'Clientes',icon:'◑',section:'Clientes'},
   {id:'rankings',label:'Rankings',icon:'▲',section:'Análises'},
   {id:'cashflow',label:'Caixa Mensal',icon:'◇',section:'Financeiro'},
   {id:'cashflow-geral',label:'Balanço Geral',icon:'◈',section:'Financeiro'},
@@ -632,6 +733,7 @@ function MainApp() {
     rankings:<Rankings/>, cashflow:<Cashflow/>, 'cashflow-geral':<CashflowGeral/>,
     returns:<Returns/>, employees:<Employees/>, goals:<Goals/>,
     'seller-home':<SellerHome/>, 'my-sales':<MySales/>,
+    clients:<Clients/>,
   };
   const cur = menu.find(m=>m.id===page) || {label:page};
   const navigateTo = (id) => { setPage(id); setShowMore(false); };
@@ -750,6 +852,7 @@ function MainApp() {
     </div>
   );
 }
+
 // ===== SELLER HOME =====
 function SellerHome() {
   const { currentUser, sales, goals, sellers } = useContext(AppContext);
@@ -773,6 +876,15 @@ function SellerHome() {
     const t=mySales.filter(s=>s.date.slice(0,10)===dd).reduce((a,s)=>a+s.total,0);
     last7.push({label:d.toLocaleDateString('pt-BR',{weekday:'short'}),value:t});
   }
+  // ITEM 6: meta semanal
+  const goalMensal = goal?.goal || 0;
+  const semanaAtual = Math.ceil(new Date().getDate() / 7);
+  const totalSemanas = 4;
+  const goalSemanal = goalMensal / totalSemanas;
+  const inicioSemana = new Date(); inicioSemana.setDate(inicioSemana.getDate() - inicioSemana.getDay());
+  const vendasSemana = mySales.filter(s=>new Date(s.date)>=inicioSemana).reduce((a,s)=>a+s.total,0);
+  const pctSemanal = goalSemanal > 0 ? Math.min((vendasSemana/goalSemanal)*100,100) : 0;
+
   useEffect(()=>{
     if(chartInst.current) chartInst.current.destroy();
     if(!chartRef.current) return;
@@ -800,11 +912,21 @@ function SellerHome() {
             <div style={{fontSize:11,color:'#444',marginTop:4}}>{mySales.length} vendas</div>
             <div style={{marginTop:10}}>
               <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
-                <span style={{fontSize:10,color:'#444'}}>Meta: {goal?fmtMoney(goal.goal):'—'}</span>
+                <span style={{fontSize:10,color:'#444'}}>Meta mensal: {goal?fmtMoney(goal.goal):'—'}</span>
                 <span style={{fontSize:11,fontWeight:700,color}}>{pct.toFixed(0)}%</span>
               </div>
               <div className="progress-bar" style={{height:6}}><div className={`progress-fill ${pct>=100?'green':pct>=70?'yellow':'red'}`} style={{width:`${pct}%`}}/></div>
             </div>
+            {goalSemanal > 0 && (
+              <div style={{marginTop:8}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                  <span style={{fontSize:10,color:'#444'}}>Meta esta semana: {fmtMoney(goalSemanal)}</span>
+                  <span style={{fontSize:11,fontWeight:700,color:pctSemanal>=100?'var(--success)':pctSemanal>=70?'var(--warning)':'var(--danger)'}}>{pctSemanal.toFixed(0)}%</span>
+                </div>
+                <div className="progress-bar" style={{height:4}}><div className={`progress-fill ${pctSemanal>=100?'green':pctSemanal>=70?'yellow':'red'}`} style={{width:`${pctSemanal}%`}}/></div>
+                <div style={{fontSize:10,color:'#555',marginTop:2}}>{fmtMoney(vendasSemana)} desta semana</div>
+              </div>
+            )}
           </div>
           <div style={{background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.06)',borderRadius:'var(--rl)',padding:16,textAlign:'center',minWidth:120}}>
             <div style={{fontSize:10,letterSpacing:2,color:'#444',textTransform:'uppercase'}}>Ranking</div>
@@ -819,6 +941,28 @@ function SellerHome() {
         <div className="stat-card blue"><div className="stat-label">Ticket Médio</div><div className="stat-value">{fmtMoney(mySales.length?myTotal/mySales.length:0)}</div><div className="stat-icon">🎯</div></div>
         <div className="stat-card yellow"><div className="stat-label">Falta para Meta</div><div className="stat-value">{fmtMoney(Math.max(0,(goal?.goal||0)-myTotal))}</div><div className="stat-icon">🏆</div></div>
       </div>
+      {goalSemanal > 0 && (
+        <div className="card mb-24">
+          <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,marginBottom:14,color:'var(--text)'}}>ACOMPANHAMENTO SEMANAL</div>
+          <div className="grid-4">
+            {[0,1,2,3].map(wk=>{
+              const wkStart=new Date(new Date().getFullYear(),new Date().getMonth(),wk*7+1);
+              const wkEnd=new Date(new Date().getFullYear(),new Date().getMonth(),(wk+1)*7);
+              const wkTotal=mySales.filter(s=>{const d=new Date(s.date);return d>=wkStart&&d<=wkEnd;}).reduce((a,s)=>a+s.total,0);
+              const wkPct=goalSemanal>0?Math.min((wkTotal/goalSemanal)*100,100):0;
+              const isCurWk = Math.ceil(new Date().getDate()/7)-1===wk;
+              return (
+                <div key={wk} style={{background:isCurWk?'rgba(255,255,255,.05)':'var(--bg3)',border:`1px solid ${isCurWk?'rgba(255,255,255,.15)':'var(--bg5)'}`,borderRadius:'var(--r)',padding:'12px'}}>
+                  <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:4}}>Semana {wk+1}{isCurWk?' ◉':''}</div>
+                  <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:18,color:'var(--text)'}}>{fmtMoney(wkTotal)}</div>
+                  <div className="progress-bar" style={{marginTop:6,marginBottom:4}}><div className={`progress-fill ${wkPct>=100?'green':wkPct>=70?'yellow':'red'}`} style={{width:`${wkPct}%`}}/></div>
+                  <div style={{fontSize:10,color:'var(--g3)'}}>{wkPct.toFixed(0)}% da meta</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <div className="grid-2">
         <div className="card">
           <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,marginBottom:14,color:'var(--text)'}}>ÚLTIMOS 7 DIAS</div>
@@ -867,7 +1011,7 @@ function MySales() {
             <tr key={s.id}>
               <td>{fmtDate(s.date)}</td>
               <td><span className={`badge ${s.channel==='Online'?'badge-blue':'badge-white'}`}>{s.channel}</span></td>
-              <td><span className={`badge ${s.paymentMethod==='A prazo'?'badge-yellow':'badge-green'}`}>{s.paymentMethod}</span></td>
+              <td><span className={`badge ${s.paymentMethod==='A prazo'?'badge-yellow':'badge-green'}`}>{s.paymentMethod||'—'}</span></td>
               <td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--text)'}}>{fmtMoney(s.total)}</td>
               <td><span className={`badge ${s.paid?'badge-green':'badge-red'}`}>{s.paid?'Pago':'Pendente'}</span></td>
             </tr>
@@ -903,6 +1047,15 @@ function Dashboard() {
     });
     return ()=>{if(chartInst.current) chartInst.current.destroy();};
   },[JSON.stringify(last6)]);
+
+  // ITEM 6: metas semanais no dashboard
+  const semanaAtual = Math.ceil(new Date().getDate() / 7);
+  const inicioSemana = new Date(); inicioSemana.setDate(inicioSemana.getDate() - inicioSemana.getDay());
+  const vendasSemanaTotal = monthSales.filter(s=>new Date(s.date)>=inicioSemana).reduce((a,s)=>a+s.total,0);
+  const goalTotalMes = sellers.filter(s=>s.role==='seller'&&s.active).reduce((a,s)=>{const g=goals.find(gg=>gg.sellerId===s.id&&gg.month===m&&gg.year===y);return a+(g?.goal||0);},0);
+  const goalSemanalTotal = goalTotalMes/4;
+  const pctSemanalTotal = goalSemanalTotal>0?Math.min((vendasSemanaTotal/goalSemanalTotal)*100,100):0;
+
   return (
     <div>
       <div className="grid-4 mb-24">
@@ -922,8 +1075,11 @@ function Dashboard() {
             const goal=goals.find(g=>g.sellerId===s.id&&g.month===m&&g.year===y);
             const sold=monthSales.filter(x=>x.sellerId===s.id).reduce((a,x)=>a+x.total,0);
             const pct=goal?Math.min((sold/goal.goal)*100,100):0;
+            const soldSemana=monthSales.filter(x=>x.sellerId===s.id&&new Date(x.date)>=inicioSemana).reduce((a,x)=>a+x.total,0);
+            const goalSem=goal?(goal.goal/4):0;
+            const pctSem=goalSem>0?Math.min((soldSemana/goalSem)*100,100):0;
             return (
-              <div key={s.id} style={{marginBottom:12}}>
+              <div key={s.id} style={{marginBottom:14}}>
                 <div className="flex items-center justify-between" style={{marginBottom:3}}>
                   <div className="flex items-center gap-8">
                     <div className="rank-avatar" style={{width:26,height:26,fontSize:10}}>{s.photo?<img src={s.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(s.name)}</div>
@@ -934,7 +1090,12 @@ function Dashboard() {
                     <span style={{fontSize:11,fontWeight:700,color:pct>=100?'var(--success)':pct>=70?'var(--warning)':'var(--danger)'}}>{pct.toFixed(0)}%</span>
                   </div>
                 </div>
-                <div className="progress-bar"><div className={`progress-fill ${pct>=100?'green':pct>=70?'yellow':'red'}`} style={{width:`${pct}%`}}/></div>
+                <div className="progress-bar" style={{marginBottom:2}}><div className={`progress-fill ${pct>=100?'green':pct>=70?'yellow':'red'}`} style={{width:`${pct}%`}}/></div>
+                {goalSem>0&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:2}}>
+                  <span style={{fontSize:9,color:'var(--g2)'}}>Semana: {fmtMoney(soldSemana)} / {fmtMoney(goalSem)}</span>
+                  <span style={{fontSize:9,color:pctSem>=100?'var(--success)':pctSem>=70?'var(--warning)':'var(--danger)'}}>{pctSem.toFixed(0)}%</span>
+                </div>}
+                {goalSem>0&&<div className="progress-bar" style={{height:3}}><div className={`progress-fill ${pctSem>=100?'green':pctSem>=70?'yellow':'red'}`} style={{width:`${pctSem}%`}}/></div>}
               </div>
             );
           })}
@@ -1003,21 +1164,30 @@ function SalesMonth() {
     </div>
   );
 }
+
+// ===== NOVA VENDA (ITEM 9: múltiplos pagamentos, troco, data agendada; ITEM 10: desconto; ITEM 3: cliente) =====
 function NewSale() {
-  const { products, sellers, sales, setSales, setProducts, currentUser, addToast, addMovement } = useContext(AppContext);
+  const { products, sellers, sales, setSales, setProducts, currentUser, clients, addToast, addMovement } = useContext(AppContext);
+  const isAdmin = currentUser.role === 'admin';
   const [selectedSeller, setSelectedSeller] = useState(currentUser.role==='seller'?currentUser.id:'');
   const [store, setStore] = useState(currentUser.role==='seller'?currentUser.store:'Cosmos');
   const [channel, setChannel] = useState('Física');
   const [items, setItems] = useState([]);
-  const [payMethod, setPayMethod] = useState('Dinheiro');
-  const [dueDate, setDueDate] = useState('');
+  const [discount, setDiscount] = useState(0); // ITEM 10
+  const [discountType, setDiscountType] = useState('percent'); // 'percent' | 'value'
+  const [clientId, setClientId] = useState('');
   const [clientName, setClientName] = useState('');
+  // ITEM 9: múltiplos métodos
+  const [payMethods, setPayMethods] = useState([{method:'Dinheiro',value:'',dueDate:''}]);
+  const [receivedAmount, setReceivedAmount] = useState(''); // troco
   const [search, setSearch] = useState('');
   const [showAuto, setShowAuto] = useState(false);
   const [autoIdx, setAutoIdx] = useState(-1);
   const [showScanner, setShowScanner] = useState(false);
   const searchRef = useRef();
+
   const filteredProds = search.length>=1 ? products.filter(p=>p.store===store&&(p.code.toLowerCase().includes(search.toLowerCase())||p.description.toLowerCase().includes(search.toLowerCase()))).slice(0,8) : [];
+
   const addItem = (prod) => {
     setItems(it=>{
       const ex=it.find(i=>i.productId===prod.id);
@@ -1026,26 +1196,60 @@ function NewSale() {
     });
     setSearch(''); setShowAuto(false); searchRef.current?.focus();
   };
+
   const updateQty = (productId, qty) => {
     if(qty<=0){setItems(it=>it.filter(i=>i.productId!==productId));return;}
     setItems(it=>it.map(i=>i.productId===productId?{...i,qty,total:qty*i.unitPrice}:i));
   };
-  const total = items.reduce((a,i)=>a+i.total,0);
+
+  const subtotal = items.reduce((a,i)=>a+i.total,0);
+  const discountValue = discountType==='percent' ? subtotal*(Number(discount)||0)/100 : Math.min(Number(discount)||0, subtotal);
+  const total = Math.max(0, subtotal - discountValue);
+
+  // troco
+  const hasDinheiro = payMethods.some(p=>p.method==='Dinheiro');
+  const totalPago = payMethods.reduce((a,p)=>a+(Number(p.value)||0),0);
+  const troco = hasDinheiro ? Math.max(0, (Number(receivedAmount)||0) - total) : 0;
+
+  const addPayMethod = () => setPayMethods(m=>[...m,{method:'Pix',value:'',dueDate:''}]);
+  const removePayMethod = (i) => setPayMethods(m=>m.filter((_,idx)=>idx!==i));
+  const updatePayMethod = (i, field, val) => setPayMethods(m=>m.map((p,idx)=>idx===i?{...p,[field]:val}:p));
+
+  const hasAPrazo = payMethods.some(p=>p.method==='A prazo');
+  const isPaid = !hasAPrazo;
+
   const submitSale = () => {
     if(!selectedSeller) return addToast('Selecione um vendedor','error');
     if(items.length===0) return addToast('Adicione pelo menos um produto','error');
-    if(payMethod==='A prazo'&&!clientName) return addToast('Informe o nome do cliente','error');
+    if(hasAPrazo && !clientName) return addToast('Informe o nome do cliente para venda a prazo','error');
     for(const item of items){
       const prod=products.find(p=>p.id===item.productId);
       if(!prod||prod.qty<item.qty) return addToast('Estoque insuficiente: '+(prod?.description||'?'),'error');
     }
     const seller=sellers.find(s=>s.id===selectedSeller);
-    const sale={id:'sale'+Date.now(),date:new Date().toISOString(),sellerId:selectedSeller,sellerName:seller.name,store,channel,items,total,paymentMethod:payMethod,clientName:payMethod==='A prazo'?clientName:'',dueDate:payMethod==='A prazo'?dueDate:'',paid:payMethod!=='A prazo'};
+    const dueDateMain = payMethods.find(p=>p.method==='A prazo')?.dueDate || '';
+    const sale={
+      id:'sale'+Date.now(),
+      date:new Date().toISOString(),
+      sellerId:selectedSeller,sellerName:seller.name,
+      store,channel,items,
+      subtotal,discountValue,discountType,discountPercent:discountType==='percent'?Number(discount):0,
+      total,
+      paymentMethods: payMethods.map(p=>({...p,value:Number(p.value)||0})),
+      paymentMethod: payMethods.length===1 ? payMethods[0].method : 'Múltiplos',
+      clientId: clientId||'',
+      clientName: clientName||'',
+      dueDate: dueDateMain,
+      paid: isPaid,
+      receivedAmount: hasDinheiro ? (Number(receivedAmount)||0) : 0,
+      troco: troco,
+    };
     setSales(s=>[...s,sale]);
     setProducts(ps=>ps.map(p=>{const item=items.find(i=>i.productId===p.id);if(!item) return p;addMovement(p.id,'saída',item.qty,'Venda #'+sale.id.slice(-4));return {...p,qty:p.qty-item.qty};}));
-    setItems([]); setClientName(''); setDueDate('');
+    setItems([]); setClientName(''); setClientId(''); setDiscount(0); setPayMethods([{method:'Dinheiro',value:'',dueDate:''}]); setReceivedAmount('');
     addToast('Venda registrada! 🎉','success');
   };
+
   return (
     <div>
       <div className="grid-2 mb-16">
@@ -1068,14 +1272,30 @@ function NewSale() {
             <div className="form-field"><label>Canal</label>
               <select value={channel} onChange={e=>setChannel(e.target.value)}><option>Física</option><option>Online</option></select>
             </div>
-            <div className="form-field"><label>Pagamento</label>
-              <select value={payMethod} onChange={e=>setPayMethod(e.target.value)}><option>Dinheiro</option><option>Pix</option><option>Cartão</option><option>A prazo</option></select>
+            <div className="form-field"><label>Cliente (opcional)</label>
+              <select value={clientId} onChange={e=>{setClientId(e.target.value);const c=clients.find(x=>x.id===e.target.value);if(c)setClientName(c.name);}}>
+                <option value="">Sem cadastro</option>
+                {clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
           </div>
-          {payMethod==='A prazo' && (
-            <div className="form-row cols-2">
-              <div className="form-field"><label>Cliente</label><input value={clientName} onChange={e=>setClientName(e.target.value)} placeholder="Nome"/></div>
-              <div className="form-field"><label>Vencimento</label><input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></div>
+          {(hasAPrazo || !clientId) && (
+            <div className="form-row">
+              <div className="form-field"><label>Nome do Cliente</label><input value={clientName} onChange={e=>setClientName(e.target.value)} placeholder="Nome para identificação"/></div>
+            </div>
+          )}
+          {/* ITEM 10: desconto — só admin */}
+          {isAdmin && (
+            <div style={{marginTop:4}}>
+              <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:6}}>Desconto</div>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <select value={discountType} onChange={e=>setDiscountType(e.target.value)} style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'7px 10px',color:'var(--text)',fontSize:13,width:110}}>
+                  <option value="percent">% Percent.</option>
+                  <option value="value">R$ Valor</option>
+                </select>
+                <input type="number" min="0" step="0.01" value={discount} onChange={e=>setDiscount(e.target.value)} placeholder="0" style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'7px 10px',color:'var(--text)',fontSize:13,flex:1}}/>
+                {discountValue > 0 && <span style={{fontSize:11,color:'var(--warning)',whiteSpace:'nowrap'}}>-{fmtMoney(discountValue)}</span>}
+              </div>
             </div>
           )}
         </div>
@@ -1105,7 +1325,10 @@ function NewSale() {
                 <div className="autocomplete-list">
                   {filteredProds.map((p,i)=>(
                     <div key={p.id} className={`autocomplete-item ${i===autoIdx?'active':''}`} onMouseDown={()=>addItem(p)} style={{display:'flex',alignItems:'center',gap:10}}>
-                      {p.photo?<img src={p.photo} style={{width:36,height:36,borderRadius:4,objectFit:'cover',flexShrink:0}} alt=""/>:<div style={{width:36,height:36,borderRadius:4,background:'var(--bg5)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,opacity:.4}}>▦</div>}
+                      {p.photo
+                        ? <img src={p.photo} style={{width:40,height:40,borderRadius:4,objectFit:'cover',flexShrink:0,border:'1px solid var(--bg5)'}} alt=""/>
+                        : <div style={{width:40,height:40,borderRadius:4,background:'var(--bg5)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,opacity:.4}}>▦</div>
+                      }
                       <div><div style={{fontWeight:600,color:'var(--text)',fontSize:13}}>{p.description}</div><small>{p.code} · {fmtMoney(p.salePrice)} · {p.qty} em estoque</small></div>
                     </div>
                   ))}
@@ -1116,7 +1339,8 @@ function NewSale() {
           </div>
         </div>
       </div>
-      <div className="card">
+
+      <div className="card mb-16">
         <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,marginBottom:14,color:'var(--text)'}}>ITENS DA VENDA</div>
         {items.length===0 ? (
           <div className="empty-state"><div className="icon">▦</div><p>Nenhum produto adicionado</p></div>
@@ -1125,7 +1349,10 @@ function NewSale() {
             {items.map(item=>(
               <div key={item.productId} className="sale-item-row">
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  {item.photo?<img src={item.photo} style={{width:38,height:38,borderRadius:4,objectFit:'cover',flexShrink:0}} alt=""/>:<div style={{width:38,height:38,borderRadius:4,background:'var(--bg4)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,opacity:.3}}>▦</div>}
+                  {item.photo
+                    ? <img src={item.photo} style={{width:38,height:38,borderRadius:4,objectFit:'cover',flexShrink:0,border:'1px solid var(--bg5)'}} alt=""/>
+                    : <div style={{width:38,height:38,borderRadius:4,background:'var(--bg4)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,opacity:.3}}>▦</div>
+                  }
                   <div><div style={{fontSize:13,fontWeight:500,color:'var(--text)'}}>{item.description}</div><div style={{fontSize:10,color:'var(--g3)'}}>{item.code}</div></div>
                 </div>
                 <div><input type="number" min="1" value={item.qty} onChange={e=>updateQty(item.productId,parseInt(e.target.value)||0)} style={{width:54,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'4px 6px',color:'var(--text)',fontSize:13}}/></div>
@@ -1134,28 +1361,90 @@ function NewSale() {
                 <button className="btn-icon" onClick={()=>updateQty(item.productId,0)} style={{color:'var(--danger)'}}>✕</button>
               </div>
             ))}
-            <div style={{background:'var(--bg3)',borderRadius:'var(--r)',padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:12,border:'1px solid var(--bg5)'}}>
-              <div><div style={{fontSize:10,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)'}}>Total da Venda</div><div style={{fontSize:11,color:'var(--g3)'}}>{items.length} item(s) · {payMethod}</div></div>
-              <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:32,color:'var(--text)'}}>{fmtMoney(total)}</div>
-            </div>
-            <div style={{display:'flex',justifyContent:'flex-end',marginTop:14}}>
-              <button className="btn btn-white" style={{padding:'11px 28px',fontSize:13}} onClick={submitSale}>✓ FINALIZAR VENDA</button>
-            </div>
           </>
+        )}
+      </div>
+
+      {/* ITEM 9: PAGAMENTO */}
+      <div className="card mb-16">
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+          <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,color:'var(--text)'}}>PAGAMENTO</div>
+          <button className="btn btn-sm btn-outline" onClick={addPayMethod}>+ Método</button>
+        </div>
+        {payMethods.map((pm,i)=>(
+          <div key={i} className="pay-method-row">
+            <select value={pm.method} onChange={e=>updatePayMethod(i,'method',e.target.value)} style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:13,flex:'0 0 130px'}}>
+              <option>Dinheiro</option><option>Pix</option><option>Cartão</option><option>A prazo</option>
+            </select>
+            <input type="number" step="0.01" min="0" value={pm.value} onChange={e=>updatePayMethod(i,'value',e.target.value)} placeholder="Valor (R$)" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:13,flex:1,minWidth:0}}/>
+            {pm.method==='A prazo' && (
+              <input type="date" value={pm.dueDate} onChange={e=>updatePayMethod(i,'dueDate',e.target.value)} style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:13,flex:'0 0 150px'}}/>
+            )}
+            {payMethods.length>1 && <button className="btn-icon" onClick={()=>removePayMethod(i)} style={{color:'var(--danger)',flexShrink:0}}>✕</button>}
+          </div>
+        ))}
+        {hasDinheiro && (
+          <div style={{display:'flex',alignItems:'center',gap:10,marginTop:8,padding:'10px 12px',background:'var(--bg3)',borderRadius:'var(--r)',border:'1px solid var(--bg5)'}}>
+            <span style={{fontSize:12,color:'var(--g3)',whiteSpace:'nowrap'}}>Recebido (R$):</span>
+            <input type="number" step="0.01" min="0" value={receivedAmount} onChange={e=>setReceivedAmount(e.target.value)} placeholder="0,00" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:13,flex:1}}/>
+            {Number(receivedAmount)>0 && (
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <span style={{fontSize:11,color:'var(--g3)',whiteSpace:'nowrap'}}>Troco:</span>
+                <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:15,color:troco>=0?'var(--success)':'var(--danger)',whiteSpace:'nowrap'}}>{fmtMoney(troco)}</span>
+              </div>
+            )}
+          </div>
+        )}
+        {items.length>0 && (
+          <div style={{background:'var(--bg3)',borderRadius:'var(--r)',padding:'14px 16px',marginTop:12,border:'1px solid var(--bg5)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+              <span style={{fontSize:12,color:'var(--g3)'}}>Subtotal</span>
+              <span style={{fontFamily:'DM Mono,monospace',fontSize:13,color:'var(--text)'}}>{fmtMoney(subtotal)}</span>
+            </div>
+            {discountValue>0&&<div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+              <span style={{fontSize:12,color:'var(--warning)'}}>Desconto</span>
+              <span style={{fontFamily:'DM Mono,monospace',fontSize:13,color:'var(--warning)'}}>-{fmtMoney(discountValue)}</span>
+            </div>}
+            <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,borderTop:'1px solid var(--bg5)'}}>
+              <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:18,letterSpacing:1,color:'var(--text)'}}>TOTAL</span>
+              <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:28,color:'var(--text)'}}>{fmtMoney(total)}</span>
+            </div>
+          </div>
+        )}
+        {items.length>0 && (
+          <div style={{display:'flex',justifyContent:'flex-end',marginTop:14}}>
+            <button className="btn btn-white" style={{padding:'11px 28px',fontSize:13}} onClick={submitSale}>✓ FINALIZAR VENDA</button>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
+// ITEM 1: Edição e exclusão de venda — só admin
 function SalesHistory() {
-  const { sales } = useContext(AppContext);
+  const { sales, setSales, deleteSale, currentUser, addToast } = useContext(AppContext);
+  const isAdmin = currentUser.role === 'admin';
   const [filterStore, setFilterStore] = useState('Todos');
   const [filterMethod, setFilterMethod] = useState('Todos');
   const [search, setSearch] = useState('');
-  const filtered = sales.filter(s=>(filterStore==='Todos'||s.store===filterStore)&&(filterMethod==='Todos'||s.paymentMethod===filterMethod)&&(!search||(s.sellerName.toLowerCase().includes(search.toLowerCase())||(s.clientName||'').toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const [editSale, setEditSale] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+
+  const filtered = sales.filter(s=>(filterStore==='Todos'||s.store===filterStore)&&(filterMethod==='Todos'||s.paymentMethod===filterMethod||s.paymentMethods?.some(p=>p.method===filterMethod))&&(!search||(s.sellerName.toLowerCase().includes(search.toLowerCase())||(s.clientName||'').toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+  const handleDelete = (sale) => {
+    setConfirm({
+      icon:'🗑️', titulo:'Excluir Venda', msg:`Excluir venda de ${fmtMoney(sale.total)} de ${sale.sellerName}? Esta ação não pode ser desfeita.`,
+      btnLabel:'Excluir', btnClass:'btn-danger',
+      onConfirm: () => { deleteSale(sale.id); addToast('Venda excluída','info'); setConfirm(null); }
+    });
+  };
+
   return (
     <div>
+      {confirm && <ConfirmModal {...confirm} onCancel={()=>setConfirm(null)}/>}
+      {editSale && <EditSaleModal sale={editSale} onClose={()=>setEditSale(null)}/>}
       <div className="card mb-16">
         <div className="flex items-center gap-12" style={{flexWrap:'wrap'}}>
           <div className="search-bar" style={{flex:1,minWidth:160}}><span className="search-icon">⌕</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar..."/></div>
@@ -1165,15 +1454,22 @@ function SalesHistory() {
         </div>
       </div>
       <div className="card"><div className="table-wrap"><table>
-        <thead><tr><th>Data</th><th>Vendedor</th><th>Loja</th><th>Canal</th><th>Pagamento</th><th>Status</th><th>Total</th></tr></thead>
+        <thead><tr><th>Data</th><th>Vendedor</th><th>Cliente</th><th>Loja</th><th>Pagamento</th><th>Status</th><th>Total</th>{isAdmin&&<th></th>}</tr></thead>
         <tbody>{filtered.map(s=>(
           <tr key={s.id}>
-            <td>{fmtDate(s.date)}</td><td style={{fontSize:12,color:'var(--text)'}}>{s.sellerName}</td>
+            <td>{fmtDate(s.date)}</td>
+            <td style={{fontSize:12,color:'var(--text)'}}>{s.sellerName}</td>
+            <td style={{fontSize:11,color:'var(--g3)'}}>{s.clientName||'—'}</td>
             <td><span className="badge badge-gray">{s.store}</span></td>
-            <td><span className={`badge ${s.channel==='Online'?'badge-blue':'badge-white'}`}>{s.channel}</span></td>
-            <td><span className={`badge ${s.paymentMethod==='A prazo'?'badge-yellow':'badge-green'}`}>{s.paymentMethod}</span></td>
+            <td><span className={`badge ${s.paymentMethod==='A prazo'?'badge-yellow':s.paymentMethod==='Múltiplos'?'badge-blue':'badge-green'}`}>{s.paymentMethod}</span></td>
             <td><span className={`badge ${s.paid?'badge-green':'badge-red'}`}>{s.paid?'Pago':'Pendente'}</span></td>
             <td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--text)'}}>{fmtMoney(s.total)}</td>
+            {isAdmin&&<td>
+              <div className="flex gap-8">
+                <button className="btn-icon" onClick={()=>setEditSale(s)} title="Editar">✎</button>
+                <button className="btn-icon" onClick={()=>handleDelete(s)} style={{color:'var(--danger)'}} title="Excluir">🗑</button>
+              </div>
+            </td>}
           </tr>
         ))}</tbody>
       </table></div></div>
@@ -1181,13 +1477,66 @@ function SalesHistory() {
   );
 }
 
+function EditSaleModal({ sale, onClose }) {
+  const { setSales, addToast } = useContext(AppContext);
+  const [clientName, setClientName] = useState(sale.clientName||'');
+  const [channel, setChannel] = useState(sale.channel||'Física');
+  const [paid, setPaid] = useState(sale.paid||false);
+  const [note, setNote] = useState(sale.note||'');
+
+  const save = () => {
+    setSales(ss=>ss.map(s=>s.id===sale.id?{...s,clientName,channel,paid,note}:s));
+    addToast('Venda atualizada!','success'); onClose();
+  };
+
+  return (
+    <div className="modal-overlay"><div className="modal">
+      <div className="modal-header"><h3>EDITAR VENDA</h3><div className="close-btn" onClick={onClose}>✕</div></div>
+      <div className="modal-body">
+        <div style={{padding:'10px 14px',background:'var(--bg3)',borderRadius:'var(--r)',marginBottom:14,fontSize:12,color:'var(--g3)'}}>
+          Venda {sale.id.slice(-6)} · {fmtDate(sale.date)} · {sale.sellerName} · <strong style={{color:'var(--text)'}}>{fmtMoney(sale.total)}</strong>
+        </div>
+        <div className="form-row cols-2">
+          <div className="form-field"><label>Canal</label>
+            <select value={channel} onChange={e=>setChannel(e.target.value)}><option>Física</option><option>Online</option></select>
+          </div>
+          <div className="form-field"><label>Status</label>
+            <select value={paid?'pago':'pendente'} onChange={e=>setPaid(e.target.value==='pago')}>
+              <option value="pago">Pago</option><option value="pendente">Pendente</option>
+            </select>
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-field"><label>Nome do Cliente</label><input value={clientName} onChange={e=>setClientName(e.target.value)}/></div>
+        </div>
+        <div className="form-row">
+          <div className="form-field"><label>Observação</label><textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Observações internas..."/></div>
+        </div>
+      </div>
+      <div className="modal-footer">
+        <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-white" onClick={save}>Salvar</button>
+      </div>
+    </div></div>
+  );
+}
+
 function Receivables() {
-  const { sales, setSales, addToast } = useContext(AppContext);
-  const pending = sales.filter(s=>s.paymentMethod==='A prazo');
-  const markPaid = (id) => { setSales(ss=>ss.map(s=>s.id===id?{...s,paid:true}:s)); addToast('Marcado como pago ✓','success'); };
+  const { sales, setSales, addToast, currentUser } = useContext(AppContext);
+  const isAdmin = currentUser.role === 'admin';
+  const [confirm, setConfirm] = useState(null);
+  const pending = sales.filter(s=>s.paymentMethod==='A prazo'||s.paymentMethods?.some(p=>p.method==='A prazo'));
+  const markPaid = (id) => {
+    setConfirm({
+      icon:'✅', titulo:'Confirmar Recebimento', msg:'Marcar este valor como recebido?',
+      btnLabel:'Confirmar', btnClass:'btn-success',
+      onConfirm: () => { setSales(ss=>ss.map(s=>s.id===id?{...s,paid:true}:s)); addToast('Marcado como pago ✓','success'); setConfirm(null); }
+    });
+  };
   const isOverdue = (s) => !s.paid && s.dueDate && new Date(s.dueDate)<new Date();
   return (
     <div>
+      {confirm && <ConfirmModal {...confirm} onCancel={()=>setConfirm(null)}/>}
       <div className="grid-3 mb-24">
         <div className="stat-card yellow"><div className="stat-label">Pendente</div><div className="stat-value">{fmtMoney(pending.filter(s=>!s.paid).reduce((a,s)=>a+s.total,0))}</div><div className="stat-icon">◎</div></div>
         <div className="stat-card red"><div className="stat-label">Atrasado</div><div className="stat-value">{fmtMoney(pending.filter(s=>isOverdue(s)).reduce((a,s)=>a+s.total,0))}</div><div className="stat-icon">⚠</div></div>
@@ -1204,7 +1553,7 @@ function Receivables() {
               <td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--text)'}}>{fmtMoney(s.total)}</td>
               <td style={{color:overdue?'var(--danger)':'var(--text)',fontSize:12}}>{fmtDate(s.dueDate)}</td>
               <td><span className={`badge ${s.paid?'badge-green':overdue?'badge-red':'badge-yellow'}`}>{s.paid?'Pago':overdue?'Atrasado':'Pendente'}</span></td>
-              <td>{!s.paid&&<button className="btn btn-sm btn-success" onClick={()=>markPaid(s.id)}>✓</button>}</td>
+              <td>{!s.paid&&isAdmin&&<button className="btn btn-sm btn-success" onClick={()=>markPaid(s.id)}>✓ Receber</button>}</td>
             </tr>
           );
         })}</tbody>
@@ -1212,9 +1561,11 @@ function Receivables() {
     </div>
   );
 }
-// ===== STOCK — BUG CORRIGIDO: useState para stockTab, adjustSearch, showAdjustScanner + sales no contexto =====
+
+// ITEM 11: Estoque com ImgDropzone para foto do produto
 function Stock() {
-  const { products, setProducts, sales, history, addToast, addMovement } = useContext(AppContext);
+  const { products, setProducts, sales, history, addToast, addMovement, currentUser } = useContext(AppContext);
+  const isAdmin = currentUser.role === 'admin';
   const [search, setSearch] = useState('');
   const [filterStore, setFilterStore] = useState('Todos');
   const [modal, setModal] = useState(null);
@@ -1222,10 +1573,10 @@ function Stock() {
   const [form, setForm] = useState({code:'',description:'',store:'Cosmos',qty:0,costPrice:0,salePrice:0,photo:null});
   const [transfer, setTransfer] = useState({productId:'',qty:1});
   const [adjust, setAdjust] = useState({productId:'',type:'entrada',qty:0,note:''});
-  // CORREÇÃO: declarar os estados que faltavam
   const [stockTab, setStockTab] = useState('todos');
   const [adjustSearch, setAdjustSearch] = useState('');
   const [showAdjustScanner, setShowAdjustScanner] = useState(false);
+  const [confirm, setConfirm] = useState(null);
 
   const filtered = products.filter(p=>(filterStore==='Todos'||p.store===filterStore)&&(!search||(p.code.toLowerCase().includes(search.toLowerCase())||p.description.toLowerCase().includes(search.toLowerCase()))));
   const openEdit = (p) => { setEditProduct(p); setForm({...p}); setModal('edit'); };
@@ -1265,8 +1616,18 @@ function Stock() {
     addToast('Estoque ajustado!','success'); setModal(null); setAdjustSearch('');
   };
 
+  const handleDeleteProduct = (p) => {
+    if (!isAdmin) return;
+    setConfirm({
+      icon:'🗑️', titulo:'Excluir Produto', msg:`Excluir "${p.description}"? O histórico de vendas será mantido.`,
+      btnLabel:'Excluir', btnClass:'btn-danger',
+      onConfirm: () => { setProducts(ps=>ps.filter(p2=>p2.id!==p.id)); addToast('Produto excluído','info'); setConfirm(null); }
+    });
+  };
+
   return (
     <div>
+      {confirm && <ConfirmModal {...confirm} onCancel={()=>setConfirm(null)}/>}
       <div className="tabs" style={{marginBottom:16}}>
         <div className={`tab ${stockTab==='todos'?'active':''}`} onClick={()=>setStockTab('todos')}>Todos os Produtos</div>
         <div className={`tab ${stockTab==='reposicao'?'active':''}`} onClick={()=>setStockTab('reposicao')}>Reposição Urgente</div>
@@ -1276,18 +1637,20 @@ function Stock() {
         <div className="flex items-center gap-12 mb-16" style={{flexWrap:'wrap'}}>
           <div className="search-bar" style={{flex:1,minWidth:160}}><span className="search-icon">⌕</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto..."/></div>
           <select style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 11px',color:'var(--text)',fontSize:13}} value={filterStore} onChange={e=>setFilterStore(e.target.value)}><option>Todos</option><option>Cosmos</option><option>Nova Cidade</option></select>
-          <button className="btn btn-sm btn-outline" onClick={()=>setModal('adjust')}>± Ajustar</button>
-          <button className="btn btn-sm btn-outline" onClick={()=>setModal('transfer')}>⇄ Transferir</button>
+          {isAdmin && <>
+            <button className="btn btn-sm btn-outline" onClick={()=>setModal('adjust')}>± Ajustar</button>
+            <button className="btn btn-sm btn-outline" onClick={()=>setModal('transfer')}>⇄ Transferir</button>
+          </>}
           <button className="btn btn-sm btn-outline" onClick={()=>setModal('history')}>≡ Histórico</button>
-          <button className="btn btn-sm btn-white" onClick={()=>{setForm({code:'',description:'',store:'Cosmos',qty:0,costPrice:0,salePrice:0,photo:null});setModal('add')}}>+ Novo</button>
+          {isAdmin && <button className="btn btn-sm btn-white" onClick={()=>{setForm({code:'',description:'',store:'Cosmos',qty:0,costPrice:0,salePrice:0,photo:null});setModal('add')}}>+ Novo</button>}
         </div>
         <div className="card"><div className="table-wrap"><table>
-          <thead><tr><th></th><th>Código</th><th>Produto</th><th>Loja</th><th>Qtd</th><th>Compra</th><th>Venda</th><th>Margem</th><th></th></tr></thead>
+          <thead><tr><th></th><th>Código</th><th>Produto</th><th>Loja</th><th>Qtd</th><th>Compra</th><th>Venda</th><th>Margem</th>{isAdmin&&<th></th>}</tr></thead>
           <tbody>{filtered.map(p=>{
             const margin=p.salePrice>0?((p.salePrice-p.costPrice)/p.salePrice*100):0;
             return (
               <tr key={p.id}>
-                <td>{p.photo?<img src={p.photo} style={{width:32,height:32,borderRadius:4,objectFit:'cover',border:'1px solid var(--bg5)'}} alt=""/>:<div style={{width:32,height:32,borderRadius:4,background:'var(--bg4)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,opacity:.4}}>▦</div>}</td>
+                <td>{p.photo?<img src={p.photo} style={{width:36,height:36,borderRadius:6,objectFit:'cover',border:'1px solid var(--bg5)'}} alt=""/>:<div style={{width:36,height:36,borderRadius:6,background:'var(--bg4)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,opacity:.4}}>▦</div>}</td>
                 <td style={{fontFamily:'DM Mono,monospace',fontSize:11,color:'var(--g3)'}}>{p.code}</td>
                 <td style={{fontWeight:500,color:'var(--text)'}}>{p.description}</td>
                 <td><span className="badge badge-gray">{p.store}</span></td>
@@ -1295,33 +1658,26 @@ function Stock() {
                 <td style={{fontFamily:'DM Mono,monospace',fontSize:11,color:'var(--g3)'}}>{fmtMoney(p.costPrice)}</td>
                 <td style={{fontFamily:'DM Mono,monospace',fontSize:12,color:'var(--text)'}}>{fmtMoney(p.salePrice)}</td>
                 <td><span className={`badge ${margin>=40?'badge-green':margin>=20?'badge-yellow':'badge-red'}`}>{margin.toFixed(0)}%</span></td>
-                <td><div className="flex gap-8"><button className="btn-icon" onClick={()=>openEdit(p)}>✎</button><button className="btn-icon" onClick={()=>setProducts(ps=>ps.filter(p2=>p2.id!==p.id))} style={{color:'var(--danger)'}}>✕</button></div></td>
+                {isAdmin&&<td><div className="flex gap-8">
+                  <button className="btn-icon" onClick={()=>openEdit(p)}>✎</button>
+                  <button className="btn-icon" onClick={()=>handleDeleteProduct(p)} style={{color:'var(--danger)'}}>🗑</button>
+                </div></td>}
               </tr>
             );
           })}</tbody>
         </table></div></div>
       </>}
 
-      {stockTab==='reposicao' && <ReposicaoUrgente products={products} sales={sales} onEdit={openEdit}/>}
+      {stockTab==='reposicao' && <ReposicaoUrgente products={products} sales={sales} onEdit={isAdmin?openEdit:null}/>}
 
       {(modal==='add'||modal==='edit')&&(
         <div className="modal-overlay"><div className="modal modal-lg">
           <div className="modal-header"><h3>{modal==='add'?'NOVO PRODUTO':'EDITAR PRODUTO'}</h3><div className="close-btn" onClick={()=>setModal(null)}>✕</div></div>
           <div className="modal-body">
-            <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:14}}>
-              <div style={{width:80,height:80,borderRadius:8,border:'2px dashed var(--bg5)',background:'var(--bg3)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',position:'relative',overflow:'hidden',flexShrink:0}} onClick={()=>document.getElementById('prod-photo-input').click()}>
-                {form.photo?<img src={form.photo} style={{width:'100%',height:'100%',objectFit:'cover'}} alt=""/>:<span style={{fontSize:24,opacity:.4}}>📷</span>}
-              </div>
-              <div style={{flex:1}}>
-                <button className="btn btn-sm btn-outline" onClick={()=>document.getElementById('prod-photo-input').click()}>📷 {form.photo?'Trocar foto':'Adicionar foto'}</button>
-                {form.photo && <button className="btn btn-sm btn-outline" style={{marginLeft:6,color:'var(--danger)'}} onClick={()=>setForm(f=>({...f,photo:null}))}>✕ Remover</button>}
-              </div>
-              <input id="prod-photo-input" type="file" accept="image/*" style={{display:'none'}} onChange={e=>{
-                const file=e.target.files[0]; if(!file) return;
-                const reader=new FileReader();
-                reader.onload=ev=>setForm(f=>({...f,photo:ev.target.result}));
-                reader.readAsDataURL(file);
-              }}/>
+            {/* ITEM 11: ImgDropzone */}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:6}}>Foto do Produto (opcional)</div>
+              <ImgDropzone value={form.photo} onChange={v=>setForm(f=>({...f,photo:v}))}/>
             </div>
             <div className="form-row cols-2">
               <div className="form-field"><label>Código</label><input value={form.code} onChange={e=>setForm(f=>({...f,code:e.target.value}))}/></div>
@@ -1359,27 +1715,21 @@ function Stock() {
 
       {modal==='adjust'&&(
         <div className="modal-overlay"><div className="modal">
-          <div className="modal-header"><h3>ENTRADA / AJUSTE DE ESTOQUE</h3><div className="close-btn" onClick={()=>setModal(null)}>✕</div></div>
+          <div className="modal-header"><h3>AJUSTE DE ESTOQUE</h3><div className="close-btn" onClick={()=>setModal(null)}>✕</div></div>
           <div className="modal-body">
             <div className="form-row"><div className="form-field">
               <label>Buscar produto</label>
               <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:6}}>
-                <div className="search-bar" style={{flex:1}}>
-                  <span className="search-icon">⌕</span>
-                  <input value={adjustSearch} onChange={e=>setAdjustSearch(e.target.value)} placeholder="Código ou nome..."/>
-                </div>
-                <button className={`barcode-btn ${showAdjustScanner?'active':''}`} onClick={()=>setShowAdjustScanner(s=>!s)} type="button">📷 {showAdjustScanner?'Fechar':'Câmera'}</button>
+                <div className="search-bar" style={{flex:1}}><span className="search-icon">⌕</span><input value={adjustSearch} onChange={e=>setAdjustSearch(e.target.value)} placeholder="Código ou nome..."/></div>
+                <button className={`barcode-btn ${showAdjustScanner?'active':''}`} onClick={()=>setShowAdjustScanner(s=>!s)} type="button">📷</button>
               </div>
-              {showAdjustScanner && <BarcodeScanner onDetect={code=>{
-                setAdjustSearch(code); setShowAdjustScanner(false);
-                const p=products.find(x=>x.code===code);
-                if(p) setAdjust(a=>({...a,productId:p.id}));
-              }} onClose={()=>setShowAdjustScanner(false)}/>}
+              {showAdjustScanner && <BarcodeScanner onDetect={code=>{setAdjustSearch(code);setShowAdjustScanner(false);const p=products.find(x=>x.code===code);if(p)setAdjust(a=>({...a,productId:p.id}));}} onClose={()=>setShowAdjustScanner(false)}/>}
               {adjustSearch && (
                 <div style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',maxHeight:160,overflowY:'auto',marginBottom:8}}>
                   {products.filter(p=>p.code.toLowerCase().includes(adjustSearch.toLowerCase())||p.description.toLowerCase().includes(adjustSearch.toLowerCase())).map(p=>(
-                    <div key={p.id} style={{padding:'8px 12px',cursor:'pointer',borderBottom:'1px solid var(--bg4)',fontSize:13,color:'var(--text)'}} onClick={()=>{setAdjust(a=>({...a,productId:p.id}));setAdjustSearch('');}}>
-                      <strong>{p.description}</strong><small style={{color:'var(--g3)',marginLeft:8}}>{p.code} · {p.store} · {p.qty} un.</small>
+                    <div key={p.id} style={{padding:'8px 12px',cursor:'pointer',borderBottom:'1px solid var(--bg4)',fontSize:13,color:'var(--text)',display:'flex',alignItems:'center',gap:8}} onClick={()=>{setAdjust(a=>({...a,productId:p.id}));setAdjustSearch('');}}>
+                      {p.photo&&<img src={p.photo} style={{width:28,height:28,borderRadius:4,objectFit:'cover'}} alt=""/>}
+                      <div><strong>{p.description}</strong><small style={{color:'var(--g3)',marginLeft:8}}>{p.code} · {p.store} · {p.qty} un.</small></div>
                     </div>
                   ))}
                 </div>
@@ -1457,7 +1807,7 @@ function ReposicaoUrgente({ products, sales, onEdit }) {
               <td><span className={`badge ${p.qty===0?'badge-red':p.qty<=5?'badge-yellow':'badge-blue'}`}>{p.qty} un</span></td>
               <td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--text)'}}>{p.vendas30}</td>
               <td><span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:13,letterSpacing:1,color:p.cor}}>{p.label}</span></td>
-              <td><button className="btn btn-sm btn-outline" onClick={()=>onEdit(p)}>Editar</button></td>
+              <td>{onEdit&&<button className="btn btn-sm btn-outline" onClick={()=>onEdit(p)}>Editar</button>}</td>
             </tr>
           ))}</tbody>
         </table></div>
@@ -1465,22 +1815,161 @@ function ReposicaoUrgente({ products, sales, onEdit }) {
     </div>
   );
 }
+
+// ===== ITEM 3: CLIENTES =====
+function Clients() {
+  const { clients, setClients, deleteClient, sales, addToast, currentUser } = useContext(AppContext);
+  const isAdmin = currentUser.role === 'admin';
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({name:'',phone:'',email:'',cpf:'',note:''});
+  const [editId, setEditId] = useState(null);
+  const [search, setSearch] = useState('');
+  const [confirm, setConfirm] = useState(null);
+
+  const filtered = clients.filter(c=>!search||(c.name.toLowerCase().includes(search.toLowerCase())||(c.phone||'').includes(search)||(c.cpf||'').includes(search)));
+
+  const openAdd = () => { setForm({name:'',phone:'',email:'',cpf:'',note:''}); setEditId(null); setModal('form'); };
+  const openEdit = (c) => { setForm({...c}); setEditId(c.id); setModal('form'); };
+
+  const save = () => {
+    if(!form.name) return addToast('Informe o nome','error');
+    if(editId) setClients(cs=>cs.map(c=>c.id===editId?{...c,...form}:c));
+    else setClients(cs=>[...cs,{...form,id:'cli'+Date.now(),createdAt:new Date().toISOString()}]);
+    addToast('Cliente salvo!','success'); setModal(null);
+  };
+
+  const handleDelete = (c) => {
+    setConfirm({
+      icon:'🗑️', titulo:'Excluir Cliente', msg:`Excluir "${c.name}"? Histórico de vendas é mantido.`,
+      btnLabel:'Excluir', btnClass:'btn-danger',
+      onConfirm: () => { deleteClient(c.id); addToast('Cliente removido','info'); setConfirm(null); }
+    });
+  };
+
+  const getClientStats = (id) => {
+    const cs = sales.filter(s=>s.clientId===id);
+    return { count: cs.length, total: cs.reduce((a,s)=>a+s.total,0) };
+  };
+
+  return (
+    <div>
+      {confirm && <ConfirmModal {...confirm} onCancel={()=>setConfirm(null)}/>}
+      <div className="flex items-center justify-between mb-16" style={{flexWrap:'wrap',gap:10}}>
+        <div className="search-bar" style={{flex:1,minWidth:160,maxWidth:320}}><span className="search-icon">⌕</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por nome, telefone..."/></div>
+        <button className="btn btn-white" onClick={openAdd}>+ Novo Cliente</button>
+      </div>
+      <div className="card">
+        <div className="table-wrap"><table>
+          <thead><tr><th>Nome</th><th>Telefone</th><th>CPF</th><th>Compras</th><th>Total Gasto</th><th>Desde</th>{isAdmin&&<th></th>}</tr></thead>
+          <tbody>{filtered.map(c=>{
+            const stats = getClientStats(c.id);
+            return (
+              <tr key={c.id}>
+                <td style={{fontWeight:600,color:'var(--text)'}}>{c.name}</td>
+                <td style={{fontSize:12,color:'var(--g3)'}}>{c.phone||'—'}</td>
+                <td style={{fontSize:11,color:'var(--g3)',fontFamily:'DM Mono,monospace'}}>{c.cpf||'—'}</td>
+                <td style={{color:'var(--text)'}}>{stats.count}</td>
+                <td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--success)'}}>{fmtMoney(stats.total)}</td>
+                <td style={{fontSize:11,color:'var(--g3)'}}>{fmtDate(c.createdAt)}</td>
+                {isAdmin&&<td><div className="flex gap-8">
+                  <button className="btn-icon" onClick={()=>openEdit(c)}>✎</button>
+                  <button className="btn-icon" onClick={()=>handleDelete(c)} style={{color:'var(--danger)'}}>🗑</button>
+                </div></td>}
+              </tr>
+            );
+          })}
+          {filtered.length===0&&<tr><td colSpan="7"><div className="empty-state"><div className="icon">◑</div><p>Nenhum cliente cadastrado</p></div></td></tr>}
+          </tbody>
+        </table></div>
+      </div>
+
+      {modal==='form'&&(
+        <div className="modal-overlay"><div className="modal">
+          <div className="modal-header"><h3>{editId?'EDITAR CLIENTE':'NOVO CLIENTE'}</h3><div className="close-btn" onClick={()=>setModal(null)}>✕</div></div>
+          <div className="modal-body">
+            <div className="form-row cols-2">
+              <div className="form-field"><label>Nome *</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/></div>
+              <div className="form-field"><label>Telefone</label><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="(00) 00000-0000"/></div>
+            </div>
+            <div className="form-row cols-2">
+              <div className="form-field"><label>CPF</label><input value={form.cpf} onChange={e=>setForm(f=>({...f,cpf:e.target.value}))} placeholder="000.000.000-00"/></div>
+              <div className="form-field"><label>E-mail</label><input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="email@exemplo.com"/></div>
+            </div>
+            <div className="form-row">
+              <div className="form-field"><label>Observação</label><textarea value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="Preferências, observações..."/></div>
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-outline" onClick={()=>setModal(null)}>Cancelar</button>
+            <button className="btn btn-white" onClick={save}>Salvar</button>
+          </div>
+        </div></div>
+      )}
+    </div>
+  );
+}
+
+// ===== ITEM 2 + 4: Rankings com edição de meta inline + ranking clientes =====
 function Rankings() {
-  const { sales, products, sellers } = useContext(AppContext);
+  const { sales, products, sellers, goals, setGoals, clients, addToast, currentUser } = useContext(AppContext);
+  const isAdmin = currentUser.role === 'admin';
   const [tab, setTab] = useState('sellers');
   const {m,y} = thisMonth();
+  // ITEM 2: modal de meta inline
+  const [editGoal, setEditGoal] = useState(null);
+  const [goalVal, setGoalVal] = useState('');
+
+  const saveGoal = () => {
+    if(!goalVal) return;
+    setGoals(gs=>{
+      const ex=gs.findIndex(g=>g.sellerId===editGoal.sellerId&&g.month===m&&g.year===y);
+      if(ex>=0) return gs.map((g,i)=>i===ex?{...g,goal:Number(goalVal)}:g);
+      return [...gs,{sellerId:editGoal.sellerId,month:m,year:y,goal:Number(goalVal)}];
+    });
+    addToast('Meta atualizada!','success'); setEditGoal(null);
+  };
+
   const sellerRank = sellers.filter(s=>s.role==='seller').map(s=>{
     const total=sales.filter(x=>x.sellerId===s.id).reduce((a,x)=>a+x.total,0);
     const monthTotal=sales.filter(x=>x.sellerId===s.id&&isSameMonth(x.date,m,y)).reduce((a,x)=>a+x.total,0);
-    return {...s,total,count:sales.filter(x=>x.sellerId===s.id).length,monthTotal};
+    const goal=goals.find(g=>g.sellerId===s.id&&g.month===m&&g.year===y);
+    const pct=goal?Math.min((monthTotal/goal.goal)*100,100):0;
+    return {...s,total,count:sales.filter(x=>x.sellerId===s.id).length,monthTotal,goal:goal?.goal||0,pct};
   }).sort((a,b)=>b.total-a.total);
+
+  // ITEM 4: ranking clientes
+  const clientRank = clients.map(c=>{
+    const cs=sales.filter(s=>s.clientId===c.id);
+    const monthCs=cs.filter(s=>isSameMonth(s.date,m,y));
+    return {...c,totalGasto:cs.reduce((a,s)=>a+s.total,0),totalCompras:cs.length,mesGasto:monthCs.reduce((a,s)=>a+s.total,0)};
+  }).sort((a,b)=>b.totalGasto-a.totalGasto);
+
   const prodRank = products.map(p=>{
     const sold=sales.flatMap(s=>s.items||[]).filter(i=>i.productId===p.id);
     return {...p,soldQty:sold.reduce((a,i)=>a+i.qty,0),soldTotal:sold.reduce((a,i)=>a+i.total,0)};
   }).sort((a,b)=>b.soldQty-a.soldQty);
+
   return (
     <div>
-      <div className="tabs"><div className={`tab ${tab==='sellers'?'active':''}`} onClick={()=>setTab('sellers')}>Vendedores</div><div className={`tab ${tab==='products'?'active':''}`} onClick={()=>setTab('products')}>Produtos</div><div className={`tab ${tab==='stores'?'active':''}`} onClick={()=>setTab('stores')}>Lojas</div></div>
+      {editGoal && (
+        <div className="modal-overlay"><div className="modal">
+          <div className="modal-header"><h3>EDITAR META — {editGoal.name}</h3><div className="close-btn" onClick={()=>setEditGoal(null)}>✕</div></div>
+          <div className="modal-body">
+            <div className="form-field">
+              <label>Meta do mês (R$)</label>
+              <input type="number" step="100" value={goalVal} onChange={e=>setGoalVal(e.target.value)} placeholder="Ex: 5000" autoFocus onKeyDown={e=>e.key==='Enter'&&saveGoal()}/>
+            </div>
+          </div>
+          <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setEditGoal(null)}>Cancelar</button><button className="btn btn-white" onClick={saveGoal}>Salvar</button></div>
+        </div></div>
+      )}
+      <div className="tabs">
+        <div className={`tab ${tab==='sellers'?'active':''}`} onClick={()=>setTab('sellers')}>Vendedores</div>
+        <div className={`tab ${tab==='products'?'active':''}`} onClick={()=>setTab('products')}>Produtos</div>
+        <div className={`tab ${tab==='stores'?'active':''}`} onClick={()=>setTab('stores')}>Lojas</div>
+        <div className={`tab ${tab==='clients'?'active':''}`} onClick={()=>setTab('clients')}>Melhores Clientes</div>
+      </div>
+
       {tab==='sellers'&&(
         <div className="card">
           <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,marginBottom:14,color:'var(--text)'}}>RANKING DE VENDEDORES</div>
@@ -1488,20 +1977,35 @@ function Rankings() {
             <div key={s.id} className="rank-item">
               <div className={`rank-num ${i===0?'gold':i===1?'silver':i===2?'bronze':''}`}>{i+1}</div>
               <div className="rank-avatar">{s.photo?<img src={s.photo} alt=""/>:initials(s.name)}</div>
-              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{s.name}</div><div style={{fontSize:10,color:'var(--g3)'}}>{s.store} · {s.count} vendas · Mês: {fmtMoney(s.monthTotal)}</div></div>
-              <div style={{fontFamily:'DM Mono,monospace',fontSize:14,fontWeight:700,color:'var(--text)'}}>{fmtMoney(s.total)}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{s.name}</div>
+                <div style={{fontSize:10,color:'var(--g3)'}}>{s.store} · {s.count} vendas · Mês: {fmtMoney(s.monthTotal)}</div>
+                {s.goal>0&&<div style={{marginTop:4}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:2}}>
+                    <span style={{fontSize:9,color:'var(--g3)'}}>Meta: {fmtMoney(s.goal)}</span>
+                    <span style={{fontSize:9,color:s.pct>=100?'var(--success)':s.pct>=70?'var(--warning)':'var(--danger)'}}>{s.pct.toFixed(0)}%</span>
+                  </div>
+                  <div className="progress-bar" style={{height:3}}><div className={`progress-fill ${s.pct>=100?'green':s.pct>=70?'yellow':'red'}`} style={{width:`${s.pct}%`}}/></div>
+                </div>}
+              </div>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6}}>
+                <div style={{fontFamily:'DM Mono,monospace',fontSize:14,fontWeight:700,color:'var(--text)'}}>{fmtMoney(s.total)}</div>
+                {isAdmin&&<button className="btn btn-sm btn-outline" onClick={()=>{setEditGoal(s);setGoalVal(s.goal||'');}}>🎯 Meta</button>}
+              </div>
             </div>
           ))}
         </div>
       )}
+
       {tab==='products'&&(
         <div className="card">
           <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,marginBottom:14,color:'var(--text)'}}>TOP PRODUTOS</div>
           <div className="table-wrap"><table>
-            <thead><tr><th>#</th><th>Produto</th><th>Loja</th><th>Un. Vendidas</th><th>Faturamento</th><th>Estoque</th></tr></thead>
+            <thead><tr><th>#</th><th></th><th>Produto</th><th>Loja</th><th>Un. Vendidas</th><th>Faturamento</th><th>Estoque</th></tr></thead>
             <tbody>{prodRank.slice(0,15).map((p,i)=>(
               <tr key={p.id}>
                 <td style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,color:i===0?'#ffd700':i===1?'#c0c0c0':i===2?'#cd7f32':'var(--g3)'}}>{i+1}</td>
+                <td>{p.photo?<img src={p.photo} style={{width:32,height:32,borderRadius:4,objectFit:'cover'}} alt=""/>:<div style={{width:32,height:32,borderRadius:4,background:'var(--bg4)',display:'flex',alignItems:'center',justifyContent:'center',opacity:.3}}>▦</div>}</td>
                 <td style={{fontWeight:500,color:'var(--text)',fontSize:12}}>{p.description}</td>
                 <td><span className="badge badge-gray">{p.store}</span></td>
                 <td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--text)'}}>{p.soldQty}</td>
@@ -1512,6 +2016,7 @@ function Rankings() {
           </table></div>
         </div>
       )}
+
       {tab==='stores'&&(
         <div className="grid-2">
           {['Cosmos','Nova Cidade'].map(store=>{
@@ -1525,7 +2030,7 @@ function Rankings() {
                 <div style={{fontSize:11,color:'var(--g3)',marginBottom:14}}>{sales.filter(s=>s.store===store).length} vendas · {pct.toFixed(1)}% do total</div>
                 <div className="progress-bar" style={{marginBottom:16}}><div className="progress-fill white" style={{width:`${pct}%`}}/></div>
                 {['Dinheiro','Pix','Cartão','A prazo'].map(method=>{
-                  const mt=sales.filter(s=>s.store===store&&s.paymentMethod===method).reduce((a,s)=>a+s.total,0);
+                  const mt=sales.filter(s=>s.store===store&&(s.paymentMethod===method||s.paymentMethods?.some(p=>p.method===method))).reduce((a,s)=>a+s.total,0);
                   const mpct=(mt/(t||1))*100;
                   return (
                     <div key={method} style={{marginBottom:8}}>
@@ -1539,12 +2044,34 @@ function Rankings() {
           })}
         </div>
       )}
+
+      {tab==='clients'&&(
+        <div className="card">
+          <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,marginBottom:14,color:'var(--text)'}}>MELHORES CLIENTES</div>
+          {clientRank.length===0 ? (
+            <div className="empty-state"><div className="icon">◑</div><p>Nenhum cliente cadastrado ainda. Adicione clientes em Clientes.</p></div>
+          ) : (
+            clientRank.map((c,i)=>(
+              <div key={c.id} className="rank-item">
+                <div className={`rank-num ${i===0?'gold':i===1?'silver':i===2?'bronze':''}`}>{i+1}</div>
+                <div className="rank-avatar" style={{fontSize:13,fontWeight:700}}>{initials(c.name)}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{c.name}</div>
+                  <div style={{fontSize:10,color:'var(--g3)'}}>{c.totalCompras} compras · Este mês: {fmtMoney(c.mesGasto)}</div>
+                </div>
+                <div style={{fontFamily:'DM Mono,monospace',fontSize:14,fontWeight:700,color:'var(--success)'}}>{fmtMoney(c.totalGasto)}</div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 function Returns() {
-  const { sales, products, setProducts, returns, setReturns, addToast, addMovement } = useContext(AppContext);
+  const { sales, products, setProducts, returns, setReturns, addToast, addMovement, currentUser } = useContext(AppContext);
+  const isAdmin = currentUser.role === 'admin';
   const [modal, setModal] = useState(null);
   const [step, setStep] = useState(1);
   const [selSaleId, setSelSaleId] = useState('');
@@ -1555,43 +2082,62 @@ function Returns() {
   const [trocaNova, setTrocaNova] = useState([]);
   const [searchTroca, setSearchTroca] = useState('');
   const [showAutoTroca, setShowAutoTroca] = useState(false);
+  const [confirm, setConfirm] = useState(null);
+
   const saleItems = selSaleId ? (sales.find(s=>s.id===selSaleId)?.items||[]) : [];
   const totalDev = trocaDev.reduce((a,i)=>a+i.unitPrice*i.qty,0);
   const totalNova = trocaNova.reduce((a,i)=>a+i.unitPrice*i.qty,0);
   const diff = totalNova - totalDev;
+
   const toggleSelItem = (item) => setSelItems(prev=>prev.find(i=>i.productId===item.productId)?prev.filter(i=>i.productId!==item.productId):[...prev,{...item}]);
   const addTrocaNova = (p) => { setTrocaNova(prev=>{const ex=prev.find(i=>i.productId===p.id);if(ex)return prev.map(i=>i.productId===p.id?{...i,qty:i.qty+1}:i);return [...prev,{productId:p.id,code:p.code,description:p.description,photo:p.photo||null,qty:1,unitPrice:p.salePrice,store:p.store}];}); setSearchTroca(''); setShowAutoTroca(false); };
   const filtTroca = products.filter(p=>p.qty>0&&(p.code.toLowerCase().includes(searchTroca.toLowerCase())||p.description.toLowerCase().includes(searchTroca.toLowerCase())));
+
   const confirmarDevolucao = () => {
     if(!selSaleId||selItems.length===0) return addToast('Selecione itens','error');
     if(!motivo) return addToast('Informe o motivo','error');
-    const totalEstorno=selItems.reduce((a,it)=>a+it.unitPrice*it.qty,0);
-    const sale=sales.find(s=>s.id===selSaleId);
-    const reg={id:'ret'+Date.now(),type:'devolucao',date:new Date().toISOString(),saleId:selSaleId,sellerName:sale?.sellerName||'',store:sale?.store||'',items:selItems,motivo,estornar,totalEstorno:estornar?totalEstorno:0};
-    setReturns(r=>[...r,reg]);
-    setProducts(ps=>ps.map(p=>{const it=selItems.find(i=>i.productId===p.id);return it?{...p,qty:p.qty+it.qty}:p;}));
-    selItems.forEach(it=>addMovement(it.productId,'devolução',it.qty,'Devolução: '+motivo));
-    addToast('Devolução registrada!','success');
-    setModal(null); setStep(1); setSelSaleId(''); setSelItems([]); setMotivo(''); setEstornar(true);
+    setConfirm({
+      icon:'↩', titulo:'Confirmar Devolução', msg:`Confirmar devolução de ${selItems.length} item(s)? ${estornar ? 'O valor será estornado.' : 'Sem estorno.'}`,
+      btnLabel:'Confirmar', btnClass:'btn-white',
+      onConfirm: () => {
+        const totalEstorno=selItems.reduce((a,it)=>a+it.unitPrice*it.qty,0);
+        const sale=sales.find(s=>s.id===selSaleId);
+        const reg={id:'ret'+Date.now(),type:'devolucao',date:new Date().toISOString(),saleId:selSaleId,sellerName:sale?.sellerName||'',store:sale?.store||'',items:selItems,motivo,estornar,totalEstorno:estornar?totalEstorno:0};
+        setReturns(r=>[...r,reg]);
+        setProducts(ps=>ps.map(p=>{const it=selItems.find(i=>i.productId===p.id);return it?{...p,qty:p.qty+it.qty}:p;}));
+        selItems.forEach(it=>addMovement(it.productId,'devolução',it.qty,'Devolução: '+motivo));
+        addToast('Devolução registrada!','success');
+        setModal(null); setStep(1); setSelSaleId(''); setSelItems([]); setMotivo(''); setEstornar(true); setConfirm(null);
+      }
+    });
   };
+
   const confirmarTroca = () => {
     if(trocaDev.length===0||trocaNova.length===0) return addToast('Adicione itens nos dois lados','error');
-    const reg={id:'exc'+Date.now(),type:'troca',date:new Date().toISOString(),store:trocaDev[0]?.store||'',itemsDevolvidos:trocaDev,itemsNovos:trocaNova,totalDevolvido:totalDev,totalNovo:totalNova,diferenca:diff};
-    setReturns(r=>[...r,reg]);
-    setProducts(ps=>ps.map(p=>{const dev=trocaDev.find(i=>i.productId===p.id);const novo=trocaNova.find(i=>i.productId===p.id);let qty=p.qty;if(dev)qty+=dev.qty;if(novo)qty=Math.max(0,qty-novo.qty);return {...p,qty};}));
-    trocaDev.forEach(it=>addMovement(it.productId,'devolução troca',it.qty,'Troca'));
-    trocaNova.forEach(it=>addMovement(it.productId,'saída troca',it.qty,'Troca'));
-    addToast('Troca registrada!','success');
-    setModal(null); setTrocaDev([]); setTrocaNova([]); setSearchTroca('');
+    setConfirm({
+      icon:'⇄', titulo:'Confirmar Troca', msg:`Confirmar troca? ${diff===0?'Valores iguais.':diff>0?`Cliente paga +${fmtMoney(diff)}.`:`Devolver ${fmtMoney(Math.abs(diff))} ao cliente.`}`,
+      btnLabel:'Confirmar', btnClass:'btn-white',
+      onConfirm: () => {
+        const reg={id:'exc'+Date.now(),type:'troca',date:new Date().toISOString(),store:trocaDev[0]?.store||'',itemsDevolvidos:trocaDev,itemsNovos:trocaNova,totalDevolvido:totalDev,totalNovo:totalNova,diferenca:diff};
+        setReturns(r=>[...r,reg]);
+        setProducts(ps=>ps.map(p=>{const dev=trocaDev.find(i=>i.productId===p.id);const novo=trocaNova.find(i=>i.productId===p.id);let qty=p.qty;if(dev)qty+=dev.qty;if(novo)qty=Math.max(0,qty-novo.qty);return {...p,qty};}));
+        trocaDev.forEach(it=>addMovement(it.productId,'devolução troca',it.qty,'Troca'));
+        trocaNova.forEach(it=>addMovement(it.productId,'saída troca',it.qty,'Troca'));
+        addToast('Troca registrada!','success');
+        setModal(null); setTrocaDev([]); setTrocaNova([]); setSearchTroca(''); setConfirm(null);
+      }
+    });
   };
+
   return (
     <div>
+      {confirm && <ConfirmModal {...confirm} onCancel={()=>setConfirm(null)}/>}
       <div className="flex items-center justify-between mb-16">
         <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:20,letterSpacing:3,color:'var(--text)'}}>DEVOLUÇÕES & TROCAS</span>
-        <div className="flex gap-8">
+        {isAdmin && <div className="flex gap-8">
           <button className="btn btn-outline" onClick={()=>{setModal('devolucao');setStep(1);}}>↩ Nova Devolução</button>
           <button className="btn btn-white" onClick={()=>{setModal('troca');setTrocaDev([]);setTrocaNova([]);}}>⇄ Nova Troca</button>
-        </div>
+        </div>}
       </div>
       <div className="card">
         <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,marginBottom:14,color:'var(--text)'}}>HISTÓRICO</div>
@@ -1628,6 +2174,7 @@ function Returns() {
                 <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:13,letterSpacing:2,marginBottom:8,color:'var(--g3)'}}>SELECIONE OS ITENS A DEVOLVER</div>
                 {saleItems.map(item=>(
                   <div key={item.productId} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:'var(--bg3)',borderRadius:'var(--r)',marginBottom:6,border:`1px solid ${selItems.find(i=>i.productId===item.productId)?'var(--warning)':'var(--bg5)'}`}}>
+                    {item.photo&&<img src={item.photo} style={{width:32,height:32,borderRadius:4,objectFit:'cover'}} alt=""/>}
                     <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{item.description}</div><div style={{fontSize:11,color:'var(--g3)'}}>{item.code} · {fmtMoney(item.unitPrice)} × {item.qty}</div></div>
                     <button className={`btn btn-sm ${selItems.find(i=>i.productId===item.productId)?'btn-white':'btn-outline'}`} onClick={()=>toggleSelItem(item)}>{selItems.find(i=>i.productId===item.productId)?'✓ Selecionado':'Selecionar'}</button>
                   </div>
@@ -1645,7 +2192,7 @@ function Returns() {
               </div>
               <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 16px',background:'var(--bg3)',borderRadius:'var(--r)',marginBottom:14}}>
                 <input type="checkbox" id="chk-estorno" checked={estornar} onChange={e=>setEstornar(e.target.checked)} style={{width:16,height:16,accentColor:'var(--warning)'}}/>
-                <label htmlFor="chk-estorno" style={{fontSize:13,color:'var(--text)',cursor:'pointer'}}>Estornar valor ao cliente — <strong style={{color:'var(--danger)'}}>{fmtMoney(selItems.reduce((a,i)=>a+i.unitPrice*i.qty,0))}</strong></label>
+                <label htmlFor="chk-estorno" style={{fontSize:13,color:'var(--text)',cursor:'pointer'}}>Estornar valor — <strong style={{color:'var(--danger)'}}>{fmtMoney(selItems.reduce((a,i)=>a+i.unitPrice*i.qty,0))}</strong></label>
               </div>
               <div className="flex gap-8"><button className="btn btn-outline" onClick={()=>setStep(1)}>← Voltar</button><button className="btn btn-white" style={{flex:1}} onClick={confirmarDevolucao}>Confirmar Devolução</button></div>
             </>}
@@ -1660,52 +2207,22 @@ function Returns() {
               <div>
                 <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:13,letterSpacing:2,marginBottom:8,color:'var(--warning)'}}>CLIENTE DEVOLVE</div>
                 <div className="form-field" style={{marginBottom:8}}>
-                  <select onChange={e=>{const sale=sales.find(s=>s.id===e.target.value);if(sale)setTrocaDev(sale.items.map(i=>({...i,store:sale.store})));e.target.value='';}}>
-                    <option value="">← Importar de uma venda</option>
-                    {[...sales].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,30).map(s=>(
-                      <option key={s.id} value={s.id}>{fmtDate(s.date)} · {fmtMoney(s.total)}</option>
-                    ))}
-                  </select>
+                  <select onChange={e=>{const sale=sales.find(s=>s.id===e.target.value);if(sale)setTrocaDev(sale.items.map(i=>({...i,store:sale.store})));e.target.value='';}}><option value="">← Importar de uma venda</option>{[...sales].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,30).map(s=>(<option key={s.id} value={s.id}>{fmtDate(s.date)} · {fmtMoney(s.total)}</option>))}</select>
                 </div>
-                {trocaDev.map(it=>(
-                  <div key={it.productId} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'var(--bg3)',borderRadius:'var(--r)',marginBottom:4}}>
-                    <div style={{flex:1,fontSize:12,color:'var(--text)'}}>{it.description}<br/><span style={{color:'var(--g3)',fontSize:10}}>{fmtMoney(it.unitPrice)}</span></div>
-                    <button className="btn-icon" style={{color:'var(--danger)'}} onClick={()=>setTrocaDev(d=>d.filter(i=>i.productId!==it.productId))}>✕</button>
-                  </div>
-                ))}
+                {trocaDev.map(it=>(<div key={it.productId} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'var(--bg3)',borderRadius:'var(--r)',marginBottom:4}}>{it.photo&&<img src={it.photo} style={{width:28,height:28,borderRadius:4,objectFit:'cover'}} alt=""/>}<div style={{flex:1,fontSize:12,color:'var(--text)'}}>{it.description}<br/><span style={{color:'var(--g3)',fontSize:10}}>{fmtMoney(it.unitPrice)}</span></div><button className="btn-icon" style={{color:'var(--danger)'}} onClick={()=>setTrocaDev(d=>d.filter(i=>i.productId!==it.productId))}>✕</button></div>))}
                 {trocaDev.length>0&&<div style={{padding:'8px 10px',background:'var(--bg4)',borderRadius:'var(--r)',fontFamily:'Bebas Neue,sans-serif',color:'var(--warning)'}}>Total devolvido: {fmtMoney(totalDev)}</div>}
               </div>
               <div>
                 <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:13,letterSpacing:2,marginBottom:8,color:'var(--success)'}}>CLIENTE LEVA</div>
                 <div className="autocomplete-wrap" style={{marginBottom:8}}>
                   <div className="search-bar"><span className="search-icon">⌕</span><input value={searchTroca} onChange={e=>{setSearchTroca(e.target.value);setShowAutoTroca(true)}} onBlur={()=>setTimeout(()=>setShowAutoTroca(false),200)} placeholder="Buscar produto..."/></div>
-                  {showAutoTroca&&searchTroca&&filtTroca.length>0&&(
-                    <div className="autocomplete-list">
-                      {filtTroca.slice(0,8).map(p=>(
-                        <div key={p.id} className="autocomplete-item" style={{display:'flex',alignItems:'center',gap:8}} onMouseDown={()=>addTrocaNova(p)}>
-                          <div><div style={{fontSize:12,fontWeight:600,color:'var(--text)'}}>{p.description}</div><small>{p.code} · {fmtMoney(p.salePrice)}</small></div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {showAutoTroca&&searchTroca&&filtTroca.length>0&&(<div className="autocomplete-list">{filtTroca.slice(0,8).map(p=>(<div key={p.id} className="autocomplete-item" style={{display:'flex',alignItems:'center',gap:8}} onMouseDown={()=>addTrocaNova(p)}>{p.photo&&<img src={p.photo} style={{width:28,height:28,borderRadius:4,objectFit:'cover'}} alt=""/>}<div><div style={{fontSize:12,fontWeight:600,color:'var(--text)'}}>{p.description}</div><small>{p.code} · {fmtMoney(p.salePrice)}</small></div></div>))}</div>)}
                 </div>
-                {trocaNova.map(it=>(
-                  <div key={it.productId} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'var(--bg3)',borderRadius:'var(--r)',marginBottom:4}}>
-                    <div style={{flex:1,fontSize:12,color:'var(--text)'}}>{it.description}</div>
-                    <input type="number" min="1" value={it.qty} onChange={e=>setTrocaNova(n=>n.map(i=>i.productId===it.productId?{...i,qty:parseInt(e.target.value)||1}:i))} style={{width:44,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'3px 5px',color:'var(--text)',fontSize:12}}/>
-                    <button className="btn-icon" style={{color:'var(--danger)'}} onClick={()=>setTrocaNova(n=>n.filter(i=>i.productId!==it.productId))}>✕</button>
-                  </div>
-                ))}
+                {trocaNova.map(it=>(<div key={it.productId} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'var(--bg3)',borderRadius:'var(--r)',marginBottom:4}}><div style={{flex:1,fontSize:12,color:'var(--text)'}}>{it.description}</div><input type="number" min="1" value={it.qty} onChange={e=>setTrocaNova(n=>n.map(i=>i.productId===it.productId?{...i,qty:parseInt(e.target.value)||1}:i))} style={{width:44,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'3px 5px',color:'var(--text)',fontSize:12}}/><button className="btn-icon" style={{color:'var(--danger)'}} onClick={()=>setTrocaNova(n=>n.filter(i=>i.productId!==it.productId))}>✕</button></div>))}
                 {trocaNova.length>0&&<div style={{padding:'8px 10px',background:'var(--bg4)',borderRadius:'var(--r)',fontFamily:'Bebas Neue,sans-serif',color:'var(--success)'}}>Total novo: {fmtMoney(totalNova)}</div>}
               </div>
             </div>
-            {trocaDev.length>0&&trocaNova.length>0&&(
-              <div style={{padding:'14px 16px',borderRadius:'var(--r)',marginBottom:14,background:diff===0?'var(--bg3)':diff>0?'rgba(68,255,136,.08)':'rgba(255,68,68,.08)',border:`1px solid ${diff===0?'var(--bg5)':diff>0?'rgba(68,255,136,.3)':'rgba(255,68,68,.3)'}`}}>
-                <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:24,color:diff===0?'var(--g3)':diff>0?'var(--success)':'var(--danger)'}}>
-                  {diff===0?'VALORES IGUAIS':diff>0?'CLIENTE PAGA +'+fmtMoney(diff):'DEVOLVER AO CLIENTE '+fmtMoney(Math.abs(diff))}
-                </div>
-              </div>
-            )}
+            {trocaDev.length>0&&trocaNova.length>0&&(<div style={{padding:'14px 16px',borderRadius:'var(--r)',marginBottom:14,background:diff===0?'var(--bg3)':diff>0?'rgba(68,255,136,.08)':'rgba(255,68,68,.08)',border:`1px solid ${diff===0?'var(--bg5)':diff>0?'rgba(68,255,136,.3)':'rgba(255,68,68,.3)'}`}}><div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:24,color:diff===0?'var(--g3)':diff>0?'var(--success)':'var(--danger)'}}>{diff===0?'VALORES IGUAIS':diff>0?'CLIENTE PAGA +'+fmtMoney(diff):'DEVOLVER AO CLIENTE '+fmtMoney(Math.abs(diff))}</div></div>)}
             <button className="btn btn-white" style={{width:'100%'}} onClick={confirmarTroca}>Confirmar Troca</button>
           </div>
         </div></div>
@@ -1713,11 +2230,14 @@ function Returns() {
     </div>
   );
 }
+
 function Cashflow() {
-  const { sales, expenses, setExpenses, returns, addToast } = useContext(AppContext);
+  const { sales, expenses, setExpenses, returns, addToast, currentUser } = useContext(AppContext);
+  const isAdmin = currentUser.role === 'admin';
   const [filterStore, setFilterStore] = useState('Todos');
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({description:'',amount:0,store:'Cosmos',category:'Aluguel',date:new Date().toISOString().slice(0,10)});
+  const [confirm, setConfirm] = useState(null);
   const {m,y} = thisMonth();
   const filtSales=sales.filter(s=>(filterStore==='Todos'||s.store===filterStore)&&isSameMonth(s.date,m,y));
   const filtExp=expenses.filter(e=>(filterStore==='Todos'||e.store===filterStore)&&isSameMonth(e.date,m,y));
@@ -1725,16 +2245,27 @@ function Cashflow() {
   const totalIn=filtSales.reduce((a,s)=>a+s.total,0);
   const totalEstornos=filtRet.reduce((a,r)=>a+r.totalEstorno,0);
   const totalOut=filtExp.reduce((a,e)=>a+e.amount,0);
+
   const saveExpense = () => {
     if(!form.description||!form.amount) return addToast('Preencha todos os campos','error');
     setExpenses(ex=>[...ex,{...form,id:'e'+Date.now(),amount:Number(form.amount),date:new Date(form.date).toISOString()}]);
     addToast('Despesa cadastrada!','success'); setModal(false);
   };
+
+  const handleDeleteExpense = (e) => {
+    setConfirm({
+      icon:'🗑️', titulo:'Excluir Despesa', msg:`Excluir despesa "${e.description}" de ${fmtMoney(e.amount)}?`,
+      btnLabel:'Excluir', btnClass:'btn-danger',
+      onConfirm: () => { setExpenses(ex=>ex.filter(x=>x.id!==e.id)); addToast('Despesa removida','info'); setConfirm(null); }
+    });
+  };
+
   return (
     <div>
+      {confirm && <ConfirmModal {...confirm} onCancel={()=>setConfirm(null)}/>}
       <div className="flex items-center gap-12 mb-24" style={{flexWrap:'wrap'}}>
         <select style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 11px',color:'var(--text)',fontSize:13}} value={filterStore} onChange={e=>setFilterStore(e.target.value)}><option>Todos</option><option>Cosmos</option><option>Nova Cidade</option></select>
-        <button className="btn btn-white" onClick={()=>setModal(true)}>+ Nova Despesa</button>
+        {isAdmin&&<button className="btn btn-white" onClick={()=>setModal(true)}>+ Nova Despesa</button>}
       </div>
       <div className="grid-4 mb-24">
         <div className="stat-card green"><div className="stat-label">Entradas</div><div className="stat-value">{fmtMoney(totalIn)}</div><div className="stat-icon">↑</div></div>
@@ -1745,24 +2276,18 @@ function Cashflow() {
       <div className="grid-2">
         <div className="card">
           <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,marginBottom:14,color:'var(--text)'}}>ENTRADAS</div>
-          <div className="table-wrap table-scroll"><table>
-            <thead><tr><th>Data</th><th>Loja</th><th>Vendedor</th><th>Valor</th></tr></thead>
-            <tbody>{filtSales.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(s=>(
-              <tr key={s.id}><td style={{fontSize:11}}>{fmtDate(s.date)}</td><td><span className="badge badge-gray">{s.store}</span></td><td style={{fontSize:12,color:'var(--text)'}}>{s.sellerName}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--success)',fontSize:12}}>{fmtMoney(s.total)}</td></tr>
-            ))}</tbody>
+          <div className="table-wrap table-scroll"><table><thead><tr><th>Data</th><th>Loja</th><th>Vendedor</th><th>Valor</th></tr></thead>
+            <tbody>{filtSales.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(s=>(<tr key={s.id}><td style={{fontSize:11}}>{fmtDate(s.date)}</td><td><span className="badge badge-gray">{s.store}</span></td><td style={{fontSize:12,color:'var(--text)'}}>{s.sellerName}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--success)',fontSize:12}}>{fmtMoney(s.total)}</td></tr>))}</tbody>
           </table></div>
         </div>
         <div className="card">
           <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,marginBottom:14,color:'var(--text)'}}>DESPESAS</div>
-          <div className="table-wrap table-scroll"><table>
-            <thead><tr><th>Descrição</th><th>Cat.</th><th>Loja</th><th>Valor</th><th></th></tr></thead>
-            <tbody>{filtExp.map(e=>(
-              <tr key={e.id}><td style={{color:'var(--text)',fontSize:12}}>{e.description}</td><td><span className="badge badge-gray">{e.category}</span></td><td><span className="badge badge-gray">{e.store}</span></td><td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--danger)',fontSize:12}}>{fmtMoney(e.amount)}</td><td><button className="btn-icon" onClick={()=>setExpenses(ex=>ex.filter(x=>x.id!==e.id))} style={{color:'var(--danger)'}}>✕</button></td></tr>
-            ))}</tbody>
+          <div className="table-wrap table-scroll"><table><thead><tr><th>Descrição</th><th>Cat.</th><th>Loja</th><th>Valor</th>{isAdmin&&<th></th>}</tr></thead>
+            <tbody>{filtExp.map(e=>(<tr key={e.id}><td style={{color:'var(--text)',fontSize:12}}>{e.description}</td><td><span className="badge badge-gray">{e.category}</span></td><td><span className="badge badge-gray">{e.store}</span></td><td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--danger)',fontSize:12}}>{fmtMoney(e.amount)}</td>{isAdmin&&<td><button className="btn-icon" onClick={()=>handleDeleteExpense(e)} style={{color:'var(--danger)'}}>🗑</button></td>}</tr>))}</tbody>
           </table></div>
         </div>
       </div>
-      {modal&&(
+      {modal&&isAdmin&&(
         <div className="modal-overlay"><div className="modal">
           <div className="modal-header"><h3>NOVA DESPESA</h3><div className="close-btn" onClick={()=>setModal(false)}>✕</div></div>
           <div className="modal-body">
@@ -1801,13 +2326,11 @@ function CashflowGeral() {
   });
   const totais=rows.reduce((a,r)=>({entradas:a.entradas+r.entradas,estornos:a.estornos+r.estornos,saidas:a.saidas+r.saidas,lucro:a.lucro+r.lucro,vendas:a.vendas+r.vendas}),{entradas:0,estornos:0,saidas:0,lucro:0,vendas:0});
   const exportarCSV = () => {
-    const sep = '\n';
-    const header = 'Mes;Vendas;Entradas;Estornos;Saidas;Lucro'+sep;
-    const body = rows.map(r=>`${nomeMes(r.m)} ${selYear};${r.vendas};${r.entradas.toFixed(2)};${r.estornos.toFixed(2)};${r.saidas.toFixed(2)};${r.lucro.toFixed(2)}`).join(sep);
-    const footer = sep+'TOTAL;'+totais.vendas+';'+totais.entradas.toFixed(2)+';'+totais.estornos.toFixed(2)+';'+totais.saidas.toFixed(2)+';'+totais.lucro.toFixed(2);
+    const sep='\n',header='Mes;Vendas;Entradas;Estornos;Saidas;Lucro'+sep;
+    const body=rows.map(r=>`${nomeMes(r.m)} ${selYear};${r.vendas};${r.entradas.toFixed(2)};${r.estornos.toFixed(2)};${r.saidas.toFixed(2)};${r.lucro.toFixed(2)}`).join(sep);
+    const footer=sep+'TOTAL;'+totais.vendas+';'+totais.entradas.toFixed(2)+';'+totais.estornos.toFixed(2)+';'+totais.saidas.toFixed(2)+';'+totais.lucro.toFixed(2);
     const blob=new Blob([header+body+footer],{type:'text/csv;charset=utf-8;'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a'); a.href=url; a.download='balanco_geral_'+selYear+'.csv'; a.click(); URL.revokeObjectURL(url);
+    const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='balanco_geral_'+selYear+'.csv';a.click();URL.revokeObjectURL(url);
   };
   return (
     <div>
@@ -1826,24 +2349,8 @@ function CashflowGeral() {
       <div className="card"><div className="table-wrap"><table>
         <thead><tr><th>Mês</th><th>Vendas</th><th>Entradas</th><th>Estornos</th><th>Despesas</th><th>Lucro</th></tr></thead>
         <tbody>
-          {rows.map(r=>(
-            <tr key={r.m} style={{opacity:r.vendas===0&&r.saidas===0?.4:1}}>
-              <td style={{fontWeight:600,color:'var(--text)',textTransform:'capitalize'}}>{nomeMes(r.m)}</td>
-              <td style={{color:'var(--g3)',fontSize:12}}>{r.vendas}</td>
-              <td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--success)',fontSize:12}}>{fmtMoney(r.entradas)}</td>
-              <td style={{fontFamily:'DM Mono,monospace',color:'var(--warning)',fontSize:12}}>{r.estornos>0?'-'+fmtMoney(r.estornos):'—'}</td>
-              <td style={{fontFamily:'DM Mono,monospace',color:'var(--danger)',fontSize:12}}>{r.saidas>0?fmtMoney(r.saidas):'—'}</td>
-              <td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:r.lucro>=0?'var(--text)':'var(--danger)',fontSize:13}}>{fmtMoney(r.lucro)}</td>
-            </tr>
-          ))}
-          <tr style={{borderTop:'2px solid var(--bg5)'}}>
-            <td style={{fontFamily:'Bebas Neue,sans-serif',letterSpacing:2,color:'var(--text)'}}>TOTAL</td>
-            <td style={{fontWeight:700,color:'var(--text)'}}>{totais.vendas}</td>
-            <td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--success)'}}>{fmtMoney(totais.entradas)}</td>
-            <td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--warning)'}}>{totais.estornos>0?'-'+fmtMoney(totais.estornos):'—'}</td>
-            <td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--danger)'}}>{fmtMoney(totais.saidas)}</td>
-            <td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:totais.lucro>=0?'var(--text)':'var(--danger)',fontSize:15}}>{fmtMoney(totais.lucro)}</td>
-          </tr>
+          {rows.map(r=>(<tr key={r.m} style={{opacity:r.vendas===0&&r.saidas===0?.4:1}}><td style={{fontWeight:600,color:'var(--text)',textTransform:'capitalize'}}>{nomeMes(r.m)}</td><td style={{color:'var(--g3)',fontSize:12}}>{r.vendas}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--success)',fontSize:12}}>{fmtMoney(r.entradas)}</td><td style={{fontFamily:'DM Mono,monospace',color:'var(--warning)',fontSize:12}}>{r.estornos>0?'-'+fmtMoney(r.estornos):'—'}</td><td style={{fontFamily:'DM Mono,monospace',color:'var(--danger)',fontSize:12}}>{r.saidas>0?fmtMoney(r.saidas):'—'}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:r.lucro>=0?'var(--text)':'var(--danger)',fontSize:13}}>{fmtMoney(r.lucro)}</td></tr>))}
+          <tr style={{borderTop:'2px solid var(--bg5)'}}><td style={{fontFamily:'Bebas Neue,sans-serif',letterSpacing:2,color:'var(--text)'}}>TOTAL</td><td style={{fontWeight:700,color:'var(--text)'}}>{totais.vendas}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--success)'}}>{fmtMoney(totais.entradas)}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--warning)'}}>{totais.estornos>0?'-'+fmtMoney(totais.estornos):'—'}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--danger)'}}>{fmtMoney(totais.saidas)}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:totais.lucro>=0?'var(--text)':'var(--danger)',fontSize:15}}>{fmtMoney(totais.lucro)}</td></tr>
         </tbody>
       </table></div></div>
     </div>
@@ -1851,14 +2358,17 @@ function CashflowGeral() {
 }
 
 function Employees() {
-  const { sellers, setSellers, updateCurrentUser, addToast } = useContext(AppContext);
+  const { sellers, setSellers, updateCurrentUser, addToast, currentUser } = useContext(AppContext);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({name:'',role:'seller',store:'Cosmos',password:'',active:true});
   const [editId, setEditId] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [confirm, setConfirm] = useState(null);
   const fileRef = useRef();
+
   const openAdd = () => { setForm({name:'',role:'seller',store:'Cosmos',password:'',active:true}); setPhotoPreview(null); setEditId(null); setModal('form'); };
   const openEdit = (s) => { setForm({...s}); setPhotoPreview(s.photo); setEditId(s.id); setModal('form'); };
+
   const save = () => {
     if(!form.name) return addToast('Informe o nome','error');
     if(!editId&&!form.password) return addToast('Informe a senha','error');
@@ -1866,8 +2376,39 @@ function Employees() {
     else setSellers(ss=>[...ss,{...form,id:'s'+Date.now(),photo:photoPreview||null}]);
     addToast('Salvo!','success'); setModal(null);
   };
+
+  const handleToggleActive = (s) => {
+    setConfirm({
+      icon: s.active ? '🔒' : '🔓',
+      titulo: s.active ? 'Desativar Funcionário' : 'Ativar Funcionário',
+      msg: `${s.active ? 'Desativar' : 'Ativar'} "${s.name}"? ${s.active ? 'Ele não conseguirá fazer login.' : 'Ele poderá acessar o sistema.'}`,
+      btnLabel: s.active ? 'Desativar' : 'Ativar',
+      btnClass: s.active ? 'btn-danger' : 'btn-success',
+      onConfirm: () => {
+        updateCurrentUser(sellers.map(x=>x.id===s.id?{...x,active:!x.active}:x));
+        addToast('Status atualizado','info'); setConfirm(null);
+      }
+    });
+  };
+
+  // FIX BUG 8: ao excluir, remove do Firebase também; o merge no useFirestore garante que ADM sempre volta
+  const handleDelete = (s) => {
+    setConfirm({
+      icon:'🗑️', titulo:'Excluir Funcionário', msg:`Excluir "${s.name}" permanentemente? Esta ação não pode ser desfeita.`,
+      btnLabel:'Excluir', btnClass:'btn-danger',
+      onConfirm: () => {
+        setSellers(ss=>ss.filter(x=>x.id!==s.id));
+        if(window.db && window.FIREBASE_CONFIGURED) {
+          try { db.collection('sellers').doc(s.id).delete(); } catch(e) {}
+        }
+        addToast('Funcionário removido','info'); setConfirm(null);
+      }
+    });
+  };
+
   return (
     <div>
+      {confirm && <ConfirmModal {...confirm} onCancel={()=>setConfirm(null)}/>}
       <div className="flex items-center justify-between mb-24">
         <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:20,letterSpacing:3,color:'var(--text)'}}>FUNCIONÁRIOS</span>
         <button className="btn btn-white" onClick={openAdd}>+ Adicionar</button>
@@ -1882,8 +2423,8 @@ function Employees() {
             <div style={{textAlign:'center'}}><div style={{fontWeight:700,fontSize:14,color:'var(--text)'}}>{s.name}</div><div style={{fontSize:10,color:'var(--g3)',letterSpacing:1,textTransform:'uppercase',marginTop:2}}>{s.role==='admin'?'Admin':'Vendedor'}</div><div style={{fontSize:10,color:'var(--g3)',marginTop:2}}>{s.store}</div><div style={{fontSize:9,color:'var(--g2)',fontFamily:'DM Mono,monospace',marginTop:3}}>ID: {s.id}</div></div>
             <div className="flex gap-6" style={{flexWrap:'wrap',justifyContent:'center'}}>
               <button className="btn btn-sm btn-outline" onClick={()=>openEdit(s)}>✎</button>
-              <button className="btn btn-sm btn-outline" onClick={()=>{updateCurrentUser(sellers.map(x=>x.id===s.id?{...x,active:!x.active}:x));addToast('Status atualizado','info')}}>{s.active?'Desativar':'Ativar'}</button>
-              {s.id!=='ADM'&&<button className="btn btn-sm btn-danger" onClick={()=>{setSellers(ss=>ss.filter(x=>x.id!==s.id));addToast('Removido','info')}}>✕</button>}
+              <button className="btn btn-sm btn-outline" onClick={()=>handleToggleActive(s)}>{s.active?'Desativar':'Ativar'}</button>
+              {s.id!=='ADM'&&<button className="btn btn-sm btn-danger" onClick={()=>handleDelete(s)}>✕</button>}
             </div>
           </div>
         ))}
@@ -1918,10 +2459,12 @@ function Employees() {
 }
 
 function Goals() {
-  const { sellers, goals, setGoals, addToast } = useContext(AppContext);
+  const { sellers, goals, setGoals, addToast, currentUser } = useContext(AppContext);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({sellerId:'',month:new Date().getMonth(),year:new Date().getFullYear(),goal:''});
+  const [confirm, setConfirm] = useState(null);
   const months=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
   const save = () => {
     if(!form.sellerId||!form.goal) return addToast('Preencha todos os campos','error');
     setGoals(gs=>{
@@ -1931,17 +2474,37 @@ function Goals() {
     });
     addToast('Meta definida!','success'); setModal(false);
   };
+
+  const handleDelete = (g, seller) => {
+    setConfirm({
+      icon:'🗑️', titulo:'Excluir Meta',
+      msg:`Excluir meta de ${fmtMoney(g.goal)} de ${seller?.name||'?'} em ${months[g.month]}/${g.year}?`,
+      btnLabel:'Excluir', btnClass:'btn-danger',
+      onConfirm: () => {
+        setGoals(gs=>gs.filter(x=>!(x.sellerId===g.sellerId&&x.month===g.month&&x.year===g.year)));
+        addToast('Meta removida','info'); setConfirm(null);
+      }
+    });
+  };
+
   return (
     <div>
+      {confirm && <ConfirmModal {...confirm} onCancel={()=>setConfirm(null)}/>}
       <div className="flex items-center justify-between mb-24">
         <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:20,letterSpacing:3,color:'var(--text)'}}>METAS POR VENDEDOR</span>
         <button className="btn btn-white" onClick={()=>{setForm({sellerId:'',month:new Date().getMonth(),year:new Date().getFullYear(),goal:''});setModal(true)}}>+ Definir Meta</button>
       </div>
       <div className="card"><div className="table-wrap"><table>
-        <thead><tr><th>Vendedor</th><th>Mês/Ano</th><th>Meta</th></tr></thead>
+        <thead><tr><th>Vendedor</th><th>Mês/Ano</th><th>Meta</th><th>Meta Semanal</th><th></th></tr></thead>
         <tbody>{goals.map((g,i)=>{
           const seller=sellers.find(s=>s.id===g.sellerId);
-          return (<tr key={i}><td><div className="flex items-center gap-8"><div className="rank-avatar" style={{width:26,height:26,fontSize:10}}>{seller?.photo?<img src={seller.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(seller?.name||'?')}</div><span style={{color:'var(--text)'}}>{seller?.name||'—'}</span></div></td><td style={{color:'var(--text)',fontSize:12}}>{months[g.month]} / {g.year}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--text)'}}>{fmtMoney(g.goal)}</td></tr>);
+          return (<tr key={i}>
+            <td><div className="flex items-center gap-8"><div className="rank-avatar" style={{width:26,height:26,fontSize:10}}>{seller?.photo?<img src={seller.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(seller?.name||'?')}</div><span style={{color:'var(--text)'}}>{seller?.name||'—'}</span></div></td>
+            <td style={{color:'var(--text)',fontSize:12}}>{months[g.month]} / {g.year}</td>
+            <td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--text)'}}>{fmtMoney(g.goal)}</td>
+            <td style={{fontFamily:'DM Mono,monospace',fontSize:11,color:'var(--g3)'}}>{fmtMoney(g.goal/4)}</td>
+            <td><button className="btn-icon" onClick={()=>handleDelete(g,seller)} style={{color:'var(--danger)'}}>🗑</button></td>
+          </tr>);
         })}</tbody>
       </table></div></div>
       {modal&&(
@@ -1953,7 +2516,10 @@ function Goals() {
               <div className="form-field"><label>Mês</label><select value={form.month} onChange={e=>setForm(f=>({...f,month:e.target.value}))}>{months.map((mn,i)=><option key={i} value={i}>{mn}</option>)}</select></div>
               <div className="form-field"><label>Ano</label><input type="number" value={form.year} onChange={e=>setForm(f=>({...f,year:e.target.value}))}/></div>
             </div>
-            <div className="form-row"><div className="form-field"><label>Meta (R$)</label><input type="number" step="100" value={form.goal} onChange={e=>setForm(f=>({...f,goal:e.target.value}))} placeholder="5000"/></div></div>
+            <div className="form-row"><div className="form-field"><label>Meta Mensal (R$)</label><input type="number" step="100" value={form.goal} onChange={e=>setForm(f=>({...f,goal:e.target.value}))} placeholder="5000"/></div></div>
+            {form.goal && <div style={{padding:'10px 14px',background:'var(--bg3)',borderRadius:'var(--r)',fontSize:12,color:'var(--g3)'}}>
+              Meta semanal calculada: <strong style={{color:'var(--text)'}}>{fmtMoney(Number(form.goal)/4)}</strong>
+            </div>}
           </div>
           <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setModal(false)}>Cancelar</button><button className="btn btn-white" onClick={save}>Salvar</button></div>
         </div></div>
