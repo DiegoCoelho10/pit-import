@@ -382,6 +382,7 @@ function AppProvider({ children }) {
   const [history, setHistory] = useState([]);
   const [returns, setReturnsRaw] = useState([]);
   const [clients, setClientsRaw] = useState([]);
+  const [reservas, setReservasRaw] = useState([]);
   const [toasts, setToasts] = useState([]);
   const [theme, setTheme] = useState('dark');
   const [device, setDevice] = useState(null);
@@ -401,6 +402,7 @@ function AppProvider({ children }) {
   const { saveDoc: saveGoal, connected: fbConnected } = useFirestore('goals', setGoalsRaw);
   const { saveDoc: saveReturn } = useFirestore('returns', setReturnsRaw);
   const { saveDoc: saveClient, deleteDoc: deleteClientDoc } = useFirestore('clients', setClientsRaw);
+  const { saveDoc: saveReserva, deleteDoc: deleteReservaDoc } = useFirestore('reservas', setReservasRaw);
 
   useEffect(() => setFirebaseStatus({ connected: fbConnected, configured: FIREBASE_CONFIGURED }), [fbConnected]);
 
@@ -470,6 +472,19 @@ function AppProvider({ children }) {
     if (FIREBASE_CONFIGURED && db) deleteClientDoc(id);
   }, [deleteClientDoc]);
 
+  const setReservas = useCallback((updOrFn) => {
+    setReservasRaw(prev => {
+      const next = typeof updOrFn === 'function' ? updOrFn(prev) : updOrFn;
+      if (FIREBASE_CONFIGURED && db) next.forEach(r => saveReserva(r.id, r));
+      return next;
+    });
+  }, [saveReserva]);
+
+  const deleteReserva = useCallback((id) => {
+    setReservasRaw(prev => prev.filter(r => r.id !== id));
+    if (FIREBASE_CONFIGURED && db) deleteReservaDoc(id);
+  }, [deleteReservaDoc]);
+
   const updateCurrentUser = useCallback((updatedSellers) => {
     setSellers(updatedSellers);
     setCurrentUser(prev => prev ? updatedSellers.find(s => s.id === prev.id) || prev : prev);
@@ -493,6 +508,7 @@ function AppProvider({ children }) {
       products, setProducts, sales, setSales, deleteSale, expenses, setExpenses,
       goals, setGoals, history, setHistory, returns, setReturns,
       clients, setClients, deleteClient,
+      reservas, setReservas, deleteReserva,
       toasts, addToast, addMovement, theme, toggleTheme, device, setDevice, firebaseStatus,
     }}>
       <div className={`${theme==='light'?'light':''} ${device?'is-'+device:''}`} style={{height:'100%'}}>
@@ -611,6 +627,8 @@ function DeviceSelector() {
 function Login() {
   const { sellers, setCurrentUser, addToast, setDevice } = useContext(AppContext);
   const [user, setUser] = useState(''), [pass, setPass] = useState(''), [err, setErr] = useState(''), [loading, setLoading] = useState(false);
+  const [lojaModal, setLojaModal] = useState(null); // guarda o seller encontrado aguardando loja
+
   const login = async () => {
     setLoading(true);
     const normalize = s => (s||'').toLowerCase().replace(/\s+/g,'');
@@ -622,11 +640,38 @@ function Login() {
     if (found.password !== pass) { setErr('Senha incorreta'); setLoading(false); return; }
     if (!found.active) { setErr('Usuário inativo'); setLoading(false); return; }
     await new Promise(r=>setTimeout(r,400));
-    setCurrentUser(found); addToast('Bem-vindo, '+found.name+'! 🎉','success'); setLoading(false);
+    setLoading(false);
+    // vendedor precisa escolher loja; admin entra direto
+    if (found.role === 'seller') { setLojaModal(found); }
+    else { setCurrentUser(found); addToast('Bem-vindo, '+found.name+'! 🎉','success'); }
   };
+
+  const confirmarLoja = (seller, loja) => {
+    setCurrentUser({...seller, store: loja});
+    addToast('Bem-vindo, '+seller.name+'! Loja: '+loja+' 🎉','success');
+    setLojaModal(null);
+  };
+
   return (
     <div className="login-page">
       <div className="login-bg"/>
+      {lojaModal && (
+        <div className="confirm-overlay">
+          <div className="confirm-box" style={{maxWidth:420}}>
+            <span className="confirm-icon">🏪</span>
+            <div className="confirm-title">EM QUAL LOJA VOCÊ ESTÁ?</div>
+            <div className="confirm-msg">Selecione a loja onde você está trabalhando <strong>hoje</strong>.</div>
+            <div style={{display:'flex',flexDirection:'column',gap:10,marginTop:4}}>
+              {['Cosmos','Nova Cidade'].map(loja=>(
+                <button key={loja} className="btn btn-white" style={{padding:'14px',fontSize:14,letterSpacing:1,justifyContent:'center'}} onClick={()=>confirmarLoja(lojaModal,loja)}>
+                  🏪 {loja}
+                </button>
+              ))}
+            </div>
+            <button style={{marginTop:14,background:'none',border:'none',color:'var(--g3)',fontSize:11,cursor:'pointer'}} onClick={()=>setLojaModal(null)}>← Voltar ao login</button>
+          </div>
+        </div>
+      )}
       <div className="login-card">
         <div className="login-logo">
           <div style={{fontSize:80,lineHeight:1,marginBottom:10}}>🏪</div>
@@ -641,6 +686,157 @@ function Login() {
         </div>
         <div style={{marginTop:12,display:'flex',justifyContent:'center'}}>
           <button style={{background:'none',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 14px',color:'var(--g3)',fontSize:11,cursor:'pointer'}} onClick={()=>setDevice(null)}>⇄ Trocar dispositivo</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResetModal({ onClose }) {
+  const { currentUser, setSales, setProducts, setSellers, setGoals, setExpenses, setReturns, setClients, setReservas, setHistory, setCurrentUser, addToast } = useContext(AppContext);
+  const [step, setStep] = useState(1); // 1=senha, 2=escolha, 3=confirmação
+  const [senha, setSenha] = useState('');
+  const [errSenha, setErrSenha] = useState('');
+  const [confirmText, setConfirmText] = useState('');
+  const [opcoes, setOpcoes] = useState({
+    vendas: true,
+    produtos: true,
+    vendedores: true,
+    metas: true,
+    despesas: true,
+    clientes: true,
+    reservas: true,
+  });
+
+  const labels = {
+    vendas: 'Histórico de Vendas',
+    produtos: 'Produtos / Estoque',
+    vendedores: 'Vendedores cadastrados',
+    metas: 'Metas',
+    despesas: 'Despesas',
+    clientes: 'Clientes',
+    reservas: 'Reservas',
+  };
+
+  const toggleOpcao = (k) => setOpcoes(o=>({...o,[k]:!o[k]}));
+  const qtdSelecionadas = Object.values(opcoes).filter(Boolean).length;
+
+  const confirmarSenha = () => {
+    if (senha !== currentUser.password) { setErrSenha('Senha incorreta'); return; }
+    setStep(2);
+  };
+
+  const executarReset = () => {
+    if (confirmText !== 'RESETAR') return;
+
+    if (opcoes.vendas) setSales([]);
+    if (opcoes.produtos) setProducts([]);
+    if (opcoes.metas) setGoals([]);
+    if (opcoes.despesas) setExpenses([]);
+    if (opcoes.clientes) setClients([]);
+    if (opcoes.reservas) setReservas([]);
+    if (opcoes.vendas) setReturns([]); // devoluções dependem de vendas
+
+    // vendedores: mantém só o ADM atual
+    if (opcoes.vendedores) {
+      setSellers([{ id:'ADM', name:'ADM', role:'admin', store:'Todos', photo:null, active:true, password: currentUser.password }]);
+    }
+
+    // limpar histórico de movimentações (local)
+    setHistory([]);
+
+    // limpar Firebase se conectado
+    if (FIREBASE_CONFIGURED && db) {
+      const cols = [];
+      if (opcoes.vendas) cols.push('sales','returns');
+      if (opcoes.produtos) cols.push('products');
+      if (opcoes.metas) cols.push('goals');
+      if (opcoes.despesas) cols.push('expenses');
+      if (opcoes.clientes) cols.push('clients');
+      if (opcoes.reservas) cols.push('reservas');
+      if (opcoes.vendedores) cols.push('sellers');
+      cols.forEach(col => {
+        db.collection(col).get().then(snap => {
+          snap.docs.forEach(doc => db.collection(col).doc(doc.id).delete());
+        }).catch(()=>{});
+      });
+    }
+
+    addToast('Sistema resetado com sucesso!', 'success');
+    setCurrentUser(null); // força novo login
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay" style={{zIndex:2000}}>
+      <div className="modal" style={{maxWidth:440}}>
+        <div className="modal-header">
+          <h3 style={{color:'var(--danger)'}}>⚠ RESETAR SISTEMA</h3>
+          <div className="close-btn" onClick={onClose}>✕</div>
+        </div>
+        <div className="modal-body">
+
+          {step===1&&(
+            <>
+              <div style={{padding:'12px 14px',background:'rgba(255,68,68,.06)',border:'1px solid rgba(255,68,68,.2)',borderRadius:'var(--r)',marginBottom:16,fontSize:12,color:'var(--g3)',lineHeight:1.6}}>
+                Esta operação <strong style={{color:'var(--danger)'}}>apaga dados permanentemente</strong>. Confirme sua senha de administrador para continuar.
+              </div>
+              <div className="form-field">
+                <label>Senha do Administrador</label>
+                <input type="password" value={senha} onChange={e=>{setSenha(e.target.value);setErrSenha('');}} autoFocus onKeyDown={e=>e.key==='Enter'&&confirmarSenha()} placeholder="••••••••"/>
+                {errSenha&&<span style={{fontSize:11,color:'var(--danger)',marginTop:4}}>{errSenha}</span>}
+              </div>
+              <div className="modal-footer" style={{padding:'14px 0 0',border:'none'}}>
+                <button className="btn btn-outline" onClick={onClose}>Cancelar</button>
+                <button className="btn btn-danger" onClick={confirmarSenha}>Confirmar →</button>
+              </div>
+            </>
+          )}
+
+          {step===2&&(
+            <>
+              <div style={{fontSize:12,color:'var(--g3)',marginBottom:14}}>Selecione o que deseja apagar:</div>
+              {Object.entries(opcoes).map(([k,v])=>(
+                <div key={k} onClick={()=>toggleOpcao(k)} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 12px',background:v?'rgba(255,68,68,.06)':'var(--bg3)',border:`1px solid ${v?'rgba(255,68,68,.3)':'var(--bg5)'}`,borderRadius:'var(--r)',marginBottom:6,cursor:'pointer',transition:'var(--t)'}}>
+                  <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${v?'var(--danger)':'var(--bg5)'}`,background:v?'var(--danger)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'var(--t)'}}>
+                    {v&&<span style={{fontSize:10,color:'#fff',fontWeight:700}}>✓</span>}
+                  </div>
+                  <span style={{fontSize:13,color:v?'var(--text)':'var(--g3)',fontWeight:v?600:400}}>{labels[k]}</span>
+                </div>
+              ))}
+              <div style={{display:'flex',gap:8,marginTop:12}}>
+                <button className="btn btn-outline btn-sm" onClick={()=>setOpcoes(o=>Object.fromEntries(Object.keys(o).map(k=>[k,true])))}>Marcar tudo</button>
+                <button className="btn btn-outline btn-sm" onClick={()=>setOpcoes(o=>Object.fromEntries(Object.keys(o).map(k=>[k,false])))}>Desmarcar tudo</button>
+              </div>
+              <div className="modal-footer" style={{padding:'14px 0 0',border:'none'}}>
+                <button className="btn btn-outline" onClick={()=>setStep(1)}>← Voltar</button>
+                <button className="btn btn-danger" disabled={qtdSelecionadas===0} style={{opacity:qtdSelecionadas===0?.5:1}} onClick={()=>setStep(3)}>Próximo →</button>
+              </div>
+            </>
+          )}
+
+          {step===3&&(
+            <>
+              <div style={{padding:'14px',background:'rgba(255,68,68,.06)',border:'1px solid rgba(255,68,68,.3)',borderRadius:'var(--r)',marginBottom:16}}>
+                <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,color:'var(--danger)',marginBottom:6}}>ATENÇÃO — AÇÃO IRREVERSÍVEL</div>
+                <div style={{fontSize:12,color:'var(--g3)',lineHeight:1.7}}>
+                  Você está prestes a apagar:<br/>
+                  {Object.entries(opcoes).filter(([,v])=>v).map(([k])=><span key={k}>• {labels[k]}<br/></span>)}
+                </div>
+              </div>
+              <div className="form-field">
+                <label>Digite <strong style={{color:'var(--danger)',letterSpacing:1}}>RESETAR</strong> para confirmar</label>
+                <input value={confirmText} onChange={e=>setConfirmText(e.target.value)} placeholder="RESETAR" style={{fontFamily:'DM Mono,monospace',letterSpacing:2,fontWeight:700}} autoFocus/>
+              </div>
+              <div className="modal-footer" style={{padding:'14px 0 0',border:'none'}}>
+                <button className="btn btn-outline" onClick={()=>setStep(2)}>← Voltar</button>
+                <button className="btn btn-danger" disabled={confirmText!=='RESETAR'} style={{opacity:confirmText==='RESETAR'?1:.4}} onClick={executarReset}>
+                  🗑 RESETAR AGORA
+                </button>
+              </div>
+            </>
+          )}
+
         </div>
       </div>
     </div>
@@ -682,6 +878,7 @@ const ADMIN_MENU = [
   {id:'returns',label:'Devoluções',icon:'↩',section:'Vendas'},
   {id:'receivables',label:'A Receber',icon:'◎',section:'Vendas'},
   {id:'stock',label:'Estoque',icon:'▦',section:'Produtos'},
+  {id:'reservas',label:'Reservas',icon:'🔒',section:'Produtos'},
   {id:'clients',label:'Clientes',icon:'◑',section:'Clientes'},
   {id:'rankings',label:'Rankings',icon:'▲',section:'Análises'},
   {id:'cashflow',label:'Caixa Mensal',icon:'◇',section:'Financeiro'},
@@ -694,6 +891,7 @@ const SELLER_MENU = [
   {id:'new-sale',label:'Nova Venda',icon:'＋',section:'Vendas'},
   {id:'my-sales',label:'Minhas Vendas',icon:'≡',section:'Vendas'},
   {id:'clients',label:'Clientes',icon:'◑',section:'Clientes'},
+  {id:'reservas',label:'Reservas',icon:'🔒',section:'Produtos'},
   {id:'rankings',label:'Ranking',icon:'▲',section:'Análises'},
 ];
 const MOBILE_ADMIN_BOTTOM = [
@@ -716,6 +914,7 @@ function MainApp() {
   const [collapsed, setCollapsed] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
   const fileRef = useRef();
   const menu = currentUser.role==='admin' ? ADMIN_MENU : SELLER_MENU;
   const sections = [...new Set(menu.map(m=>m.section))];
@@ -735,6 +934,7 @@ function MainApp() {
     returns:<Returns/>, employees:<Employees/>, goals:<Goals/>,
     'seller-home':<SellerHome/>, 'my-sales':<MySales/>,
     clients:<Clients/>,
+    reservas:<Reservas/>,
   };
   const cur = menu.find(m=>m.id===page) || {label:page};
   const navigateTo = (id) => { setPage(id); setShowMore(false); };
@@ -785,6 +985,7 @@ function MainApp() {
                 <button className="btn btn-sm btn-outline" style={{flex:1}} onClick={()=>setShowPassModal(true)}>🔑</button>
                 <button className="btn btn-sm btn-outline" onClick={toggleTheme}>{theme==='dark'?'☀️':'🌙'}</button>
                 <button className="btn btn-sm btn-outline" onClick={()=>setDevice(null)}>📱</button>
+                {currentUser.role==='admin' && <button className="btn btn-sm btn-danger" title="Resetar Sistema" onClick={()=>setShowResetModal(true)}>🗑</button>}
                 <button className="btn btn-sm btn-outline" style={{flex:1}} onClick={()=>setCurrentUser(null)}>Sair</button>
               </div>
             )}
@@ -845,6 +1046,7 @@ function MainApp() {
                 <div className="bnav-more-item" onClick={()=>{setShowMore(false);setShowPassModal(true)}}><span>🔑</span><span>Alterar Senha</span></div>
                 <div className="bnav-more-item" onClick={()=>{setShowMore(false);toggleTheme()}}><span>{theme==='dark'?'☀️':'🌙'}</span><span>Alternar Tema</span></div>
                 <div className="bnav-more-item" onClick={()=>{setShowMore(false);setDevice(null)}}><span>🖥️</span><span>Trocar Dispositivo</span></div>
+                {currentUser.role==='admin'&&<div className="bnav-more-item" style={{color:'var(--danger)'}} onClick={()=>{setShowMore(false);setShowResetModal(true)}}><span>🗑</span><span>Resetar Sistema</span></div>}
                 <div className="bnav-more-item" style={{color:'var(--danger)'}} onClick={()=>setCurrentUser(null)}><span>→</span><span>Sair</span></div>
               </div>
             </>
@@ -852,6 +1054,7 @@ function MainApp() {
         </>
       )}
       {showPassModal && <ChangePasswordModal onClose={()=>setShowPassModal(false)}/>}
+      {showResetModal && <ResetModal onClose={()=>setShowResetModal(false)}/>}
     </div>
   );
 }
@@ -1170,34 +1373,75 @@ function SalesMonth() {
 
 // ===== NOVA VENDA (ITEM 9: múltiplos pagamentos, troco, data agendada; ITEM 10: desconto; ITEM 3: cliente) =====
 function NewSale() {
-  const { products, sellers, sales, setSales, setProducts, currentUser, clients, addToast, addMovement } = useContext(AppContext);
+  const { products, sellers, sales, setSales, setProducts, currentUser, clients, reservas, setReservas, addToast, addMovement } = useContext(AppContext);
   const isAdmin = currentUser.role === 'admin';
   const [selectedSeller, setSelectedSeller] = useState(currentUser.role==='seller'?currentUser.id:'');
   const [store, setStore] = useState(currentUser.role==='seller'?currentUser.store:'Cosmos');
   const [channel, setChannel] = useState('Física');
   const [items, setItems] = useState([]);
-  const [discount, setDiscount] = useState(0); // ITEM 10
-  const [discountType, setDiscountType] = useState('percent'); // 'percent' | 'value'
+  const [discount, setDiscount] = useState(0);
+  const [discountType, setDiscountType] = useState('percent');
   const [clientId, setClientId] = useState('');
   const [clientName, setClientName] = useState('');
-  // ITEM 9: múltiplos métodos
   const [payMethods, setPayMethods] = useState([{method:'Dinheiro',value:'',dueDate:''}]);
-  const [receivedAmount, setReceivedAmount] = useState(''); // troco
+  const [receivedAmount, setReceivedAmount] = useState('');
   const [search, setSearch] = useState('');
   const [showAuto, setShowAuto] = useState(false);
   const [autoIdx, setAutoIdx] = useState(-1);
   const [showScanner, setShowScanner] = useState(false);
+  const [reservarModal, setReservarModal] = useState(null); // produto a reservar
+  const [reservarCliente, setReservarCliente] = useState('');
   const searchRef = useRef();
 
-  const filteredProds = search.length>=1 ? products.filter(p=>(store==='Todos'||!store||p.store===store)&&(p.code.toLowerCase().includes(search.toLowerCase())||p.description.toLowerCase().includes(search.toLowerCase()))).slice(0,8) : [];
+  // produtos da loja atual + produtos de outra loja (para mostrar opção de reservar)
+  const filteredProds = search.length>=1 ? products.filter(p=>
+    (p.code.toLowerCase().includes(search.toLowerCase())||p.description.toLowerCase().includes(search.toLowerCase()))
+  ).slice(0,10) : [];
+
+  // qtd reservada de um produto
+  const qtdReservada = (prodId) => reservas.filter(r=>r.produtoId===prodId&&r.ativa).reduce((a,r)=>a+r.qty,0);
+
+  // qtd disponível real = estoque - reservado
+  const qtdDisponivel = (prod) => Math.max(0, prod.qty - qtdReservada(prod.id));
 
   const addItem = (prod) => {
+    const disp = qtdDisponivel(prod);
+    if(prod.store !== store && store !== 'Todos') {
+      // produto de outra loja — não adiciona direto, sugere reservar
+      setReservarModal(prod); setReservarCliente(clientName||''); setSearch(''); setShowAuto(false); return;
+    }
+    if(disp <= 0) { addToast('Produto sem estoque disponível (pode haver reservas ativas)','error'); return; }
     setItems(it=>{
       const ex=it.find(i=>i.productId===prod.id);
       if(ex) return it.map(i=>i.productId===prod.id?{...i,qty:i.qty+1,total:(i.qty+1)*i.unitPrice}:i);
       return [...it,{productId:prod.id,code:prod.code,description:prod.description,photo:prod.photo||null,qty:1,unitPrice:prod.salePrice,total:prod.salePrice}];
     });
     setSearch(''); setShowAuto(false); searchRef.current?.focus();
+  };
+
+  const confirmarReserva = () => {
+    if(!reservarModal) return;
+    if(!reservarCliente) return addToast('Informe o nome do cliente para reserva','error');
+    const disp = qtdDisponivel(reservarModal);
+    if(disp <= 0) return addToast('Produto sem estoque disponível para reserva','error');
+    const seller = sellers.find(s=>s.id===selectedSeller) || currentUser;
+    const novaReserva = {
+      id: 'res'+Date.now(),
+      produtoId: reservarModal.id,
+      produtoNome: reservarModal.description,
+      produtoCodigo: reservarModal.code,
+      produtoLoja: reservarModal.store,
+      qty: 1,
+      vendedorId: seller.id,
+      vendedorNome: seller.name,
+      lojaVendedor: store,
+      clienteNome: reservarCliente,
+      data: new Date().toISOString(),
+      ativa: true,
+    };
+    setReservas(rs=>[...rs, novaReserva]);
+    addToast('Produto reservado para '+reservarCliente+'!','success');
+    setReservarModal(null); setReservarCliente('');
   };
 
   const updateQty = (productId, qty) => {
@@ -1209,9 +1453,7 @@ function NewSale() {
   const discountValue = discountType==='percent' ? subtotal*(Number(discount)||0)/100 : Math.min(Number(discount)||0, subtotal);
   const total = Math.max(0, subtotal - discountValue);
 
-  // troco
   const hasDinheiro = payMethods.some(p=>p.method==='Dinheiro');
-  const totalPago = payMethods.reduce((a,p)=>a+(Number(p.value)||0),0);
   const troco = hasDinheiro ? Math.max(0, (Number(receivedAmount)||0) - total) : 0;
 
   const addPayMethod = () => setPayMethods(m=>[...m,{method:'Pix',value:'',dueDate:''}]);
@@ -1228,24 +1470,22 @@ function NewSale() {
     for(const item of items){
       const prod=products.find(p=>p.id===item.productId);
       if(!prod||prod.qty<item.qty) return addToast('Estoque insuficiente: '+(prod?.description||'?'),'error');
+      const disp = qtdDisponivel(prod);
+      if(disp < item.qty) return addToast(`"${prod.description}" tem ${disp} disponível (restante está reservado)`,'error');
     }
     const seller=sellers.find(s=>s.id===selectedSeller);
     const dueDateMain = payMethods.find(p=>p.method==='A prazo')?.dueDate || '';
     const sale={
-      id:'sale'+Date.now(),
-      date:new Date().toISOString(),
-      sellerId:selectedSeller,sellerName:seller.name,
-      store,channel,items,
-      subtotal,discountValue,discountType,discountPercent:discountType==='percent'?Number(discount):0,
+      id:'sale'+Date.now(), date:new Date().toISOString(),
+      sellerId:selectedSeller, sellerName:seller.name,
+      store, channel, items,
+      subtotal, discountValue, discountType, discountPercent:discountType==='percent'?Number(discount):0,
       total,
       paymentMethods: payMethods.map(p=>({...p,value:Number(p.value)||0})),
       paymentMethod: payMethods.length===1 ? payMethods[0].method : 'Múltiplos',
-      clientId: clientId||'',
-      clientName: clientName||'',
-      dueDate: dueDateMain,
-      paid: isPaid,
-      receivedAmount: hasDinheiro ? (Number(receivedAmount)||0) : 0,
-      troco: troco,
+      clientId: clientId||'', clientName: clientName||'',
+      dueDate: dueDateMain, paid: isPaid,
+      receivedAmount: hasDinheiro ? (Number(receivedAmount)||0) : 0, troco,
     };
     setSales(s=>[...s,sale]);
     setProducts(ps=>ps.map(p=>{const item=items.find(i=>i.productId===p.id);if(!item) return p;addMovement(p.id,'saída',item.qty,'Venda #'+sale.id.slice(-4));return {...p,qty:p.qty-item.qty};}));
@@ -1255,6 +1495,28 @@ function NewSale() {
 
   return (
     <div>
+      {/* Modal de reserva */}
+      {reservarModal && (
+        <div className="modal-overlay"><div className="modal">
+          <div className="modal-header"><h3>RESERVAR PRODUTO</h3><div className="close-btn" onClick={()=>setReservarModal(null)}>✕</div></div>
+          <div className="modal-body">
+            <div style={{padding:'12px 14px',background:'rgba(255,204,0,.06)',border:'1px solid rgba(255,204,0,.2)',borderRadius:'var(--r)',marginBottom:14}}>
+              <div style={{fontWeight:600,color:'var(--text)',fontSize:13}}>{reservarModal.description}</div>
+              <div style={{fontSize:11,color:'var(--g3)',marginTop:2}}>{reservarModal.code} · Estoque em <strong style={{color:'var(--warning)'}}>{reservarModal.store}</strong> · {qtdDisponivel(reservarModal)} disponível</div>
+              <div style={{fontSize:11,color:'var(--info)',marginTop:4}}>ℹ Este produto está em outra loja. Você pode reservar para seu cliente.</div>
+            </div>
+            <div className="form-field">
+              <label>Nome do Cliente *</label>
+              <input value={reservarCliente} onChange={e=>setReservarCliente(e.target.value)} placeholder="Para quem é a reserva?" autoFocus onKeyDown={e=>e.key==='Enter'&&confirmarReserva()}/>
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-outline" onClick={()=>setReservarModal(null)}>Cancelar</button>
+            <button className="btn btn-white" onClick={confirmarReserva}>🔒 Reservar</button>
+          </div>
+        </div></div>
+      )}
+
       <div className="grid-2 mb-16">
         <div className="card">
           <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,marginBottom:14,color:'var(--text)'}}>INFORMAÇÕES</div>
@@ -1287,7 +1549,6 @@ function NewSale() {
               <div className="form-field"><label>Nome do Cliente</label><input value={clientName} onChange={e=>setClientName(e.target.value)} placeholder="Nome para identificação"/></div>
             </div>
           )}
-          {/* ITEM 10: desconto — só admin */}
           {isAdmin && (
             <div style={{marginTop:4}}>
               <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:6}}>Desconto</div>
@@ -1325,16 +1586,33 @@ function NewSale() {
                 </button>
               </div>
               {showAuto && filteredProds.length>0 && (
-                <div className="autocomplete-list">
-                  {filteredProds.map((p,i)=>(
-                    <div key={p.id} className={`autocomplete-item ${i===autoIdx?'active':''}`} onMouseDown={()=>addItem(p)} style={{display:'flex',alignItems:'center',gap:10}}>
-                      {p.photo
-                        ? <img src={p.photo} style={{width:40,height:40,borderRadius:4,objectFit:'cover',flexShrink:0,border:'1px solid var(--bg5)'}} alt=""/>
-                        : <div style={{width:40,height:40,borderRadius:4,background:'var(--bg5)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,opacity:.4}}>▦</div>
-                      }
-                      <div><div style={{fontWeight:600,color:'var(--text)',fontSize:13}}>{p.description}</div><small>{p.code} · {fmtMoney(p.salePrice)} · {p.qty} em estoque</small></div>
-                    </div>
-                  ))}
+                <div className="autocomplete-list" style={{maxHeight:280}}>
+                  {filteredProds.map((p,i)=>{
+                    const naLoja = p.store===store || store==='Todos';
+                    const disp = qtdDisponivel(p);
+                    const reservado = qtdReservada(p.id);
+                    return (
+                      <div key={p.id} className={`autocomplete-item ${i===autoIdx?'active':''}`} onMouseDown={()=>addItem(p)}
+                        style={{display:'flex',alignItems:'center',gap:10,opacity:disp<=0&&naLoja?.5:1}}>
+                        {p.photo
+                          ? <img src={p.photo} style={{width:40,height:40,borderRadius:4,objectFit:'cover',flexShrink:0,border:'1px solid var(--bg5)'}} alt=""/>
+                          : <div style={{width:40,height:40,borderRadius:4,background:'var(--bg5)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,opacity:.4}}>▦</div>
+                        }
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:600,color:'var(--text)',fontSize:13}}>{p.description}</div>
+                          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:2}}>
+                            <small style={{color:'var(--g3)'}}>{p.code} · {fmtMoney(p.salePrice)}</small>
+                            <small style={{color: disp<=0?'var(--danger)':disp<=3?'var(--warning)':'var(--success)'}}>
+                              {disp} disponível
+                            </small>
+                            {reservado>0&&<small style={{color:'var(--warning)'}}>🔒 {reservado} reservado</small>}
+                            {!naLoja && <small style={{color:'var(--info)',fontWeight:600}}>📦 {p.store} → Reservar</small>}
+                          </div>
+                        </div>
+                        {!naLoja && <span style={{fontSize:10,color:'var(--info)',whiteSpace:'nowrap',border:'1px solid rgba(68,170,255,.3)',borderRadius:'var(--r)',padding:'2px 6px'}}>🔒 Reservar</span>}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1425,57 +1703,162 @@ function NewSale() {
 }
 
 // ITEM 1: Edição e exclusão de venda — só admin
+// helper: valor de um método específico em uma venda
+function getValorMetodo(s, method) {
+  if (s.paymentMethods?.length) {
+    return s.paymentMethods.filter(p=>p.method===method).reduce((a,p)=>a+(Number(p.value)||0),0);
+  }
+  return s.paymentMethod===method ? s.total : 0;
+}
+
 function SalesHistory() {
   const { sales, setSales, deleteSale, currentUser, addToast } = useContext(AppContext);
   const isAdmin = currentUser.role === 'admin';
   const [filterStore, setFilterStore] = useState('Todos');
   const [filterMethod, setFilterMethod] = useState('Todos');
+  const [filterDate, setFilterDate] = useState('');
   const [search, setSearch] = useState('');
   const [editSale, setEditSale] = useState(null);
   const [confirm, setConfirm] = useState(null);
+  const [expanded, setExpanded] = useState(null);
 
-  const filtered = sales.filter(s=>(filterStore==='Todos'||s.store===filterStore)&&(filterMethod==='Todos'||s.paymentMethod===filterMethod||s.paymentMethods?.some(p=>p.method===filterMethod))&&(!search||(s.sellerName.toLowerCase().includes(search.toLowerCase())||(s.clientName||'').toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const filtered = sales.filter(s=>
+    (filterStore==='Todos'||s.store===filterStore) &&
+    (filterMethod==='Todos'||s.paymentMethod===filterMethod||s.paymentMethods?.some(p=>p.method===filterMethod)) &&
+    (!filterDate||s.date.slice(0,10)===filterDate) &&
+    (!search||(s.sellerName.toLowerCase().includes(search.toLowerCase())||(s.clientName||'').toLowerCase().includes(search.toLowerCase())))
+  ).sort((a,b)=>new Date(b.date)-new Date(a.date));
 
-  const handleDelete = (sale) => {
+  const METODOS = ['Dinheiro','Pix','Cartão','A prazo'];
+  const totaisPorMetodo = METODOS.map(m=>({
+    method: m,
+    val: filtered.reduce((acc,s)=>acc+getValorMetodo(s,m), 0)
+  })).filter(x=>x.val>0);
+
+  const handleDelete = (sale, e) => {
+    e.stopPropagation();
     setConfirm({
       icon:'🗑️', titulo:'Excluir Venda', msg:`Excluir venda de ${fmtMoney(sale.total)} de ${sale.sellerName}? Esta ação não pode ser desfeita.`,
       btnLabel:'Excluir', btnClass:'btn-danger',
-      onConfirm: () => { deleteSale(sale.id); addToast('Venda excluída','info'); setConfirm(null); }
+      onConfirm: () => { deleteSale(sale.id); addToast('Venda excluída','info'); setConfirm(null); if(expanded===sale.id) setExpanded(null); }
     });
   };
+
+  const colSpan = isAdmin ? 9 : 8;
 
   return (
     <div>
       {confirm && <ConfirmModal {...confirm} onCancel={()=>setConfirm(null)}/>}
       {editSale && <EditSaleModal sale={editSale} onClose={()=>setEditSale(null)}/>}
+
       <div className="card mb-16">
         <div className="flex items-center gap-12" style={{flexWrap:'wrap'}}>
-          <div className="search-bar" style={{flex:1,minWidth:160}}><span className="search-icon">⌕</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar..."/></div>
+          <div className="search-bar" style={{flex:1,minWidth:140}}><span className="search-icon">⌕</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Vendedor ou cliente..."/></div>
+          <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)} style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 11px',color:'var(--text)',fontSize:13}}/>
           <select style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 11px',color:'var(--text)',fontSize:13}} value={filterStore} onChange={e=>setFilterStore(e.target.value)}><option>Todos</option><option>Cosmos</option><option>Nova Cidade</option></select>
           <select style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 11px',color:'var(--text)',fontSize:13}} value={filterMethod} onChange={e=>setFilterMethod(e.target.value)}><option>Todos</option><option>Dinheiro</option><option>Pix</option><option>Cartão</option><option>A prazo</option></select>
           <span className="badge badge-white">{filtered.length} · {fmtMoney(filtered.reduce((a,s)=>a+s.total,0))}</span>
         </div>
-      </div>
-      <div className="card"><div className="table-wrap"><table>
-        <thead><tr><th>Data</th><th>Vendedor</th><th>Cliente</th><th>Loja</th><th>Pagamento</th><th>Status</th><th>Total</th>{isAdmin&&<th></th>}</tr></thead>
-        <tbody>{filtered.map(s=>(
-          <tr key={s.id}>
-            <td>{fmtDate(s.date)}</td>
-            <td style={{fontSize:12,color:'var(--text)'}}>{s.sellerName}</td>
-            <td style={{fontSize:11,color:'var(--g3)'}}>{s.clientName||'—'}</td>
-            <td><span className="badge badge-gray">{s.store}</span></td>
-            <td><span className={`badge ${s.paymentMethod==='A prazo'?'badge-yellow':s.paymentMethod==='Múltiplos'?'badge-blue':'badge-green'}`}>{s.paymentMethod}</span></td>
-            <td><span className={`badge ${s.paid?'badge-green':'badge-red'}`}>{s.paid?'Pago':'Pendente'}</span></td>
-            <td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--text)'}}>{fmtMoney(s.total)}</td>
-            {isAdmin&&<td>
-              <div className="flex gap-8">
-                <button className="btn-icon" onClick={()=>setEditSale(s)} title="Editar">✎</button>
-                <button className="btn-icon" onClick={()=>handleDelete(s)} style={{color:'var(--danger)'}} title="Excluir">🗑</button>
+        {totaisPorMetodo.length>0&&(
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:12,paddingTop:12,borderTop:'1px solid var(--border)',alignItems:'center'}}>
+            <span style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)'}}>Fechamento:</span>
+            {totaisPorMetodo.map(x=>(
+              <div key={x.method} style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'4px 12px',display:'flex',gap:8,alignItems:'center'}}>
+                <span style={{fontSize:10,color:'var(--g3)'}}>{x.method}</span>
+                <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:13,color:'var(--text)'}}>{fmtMoney(x.val)}</span>
               </div>
-            </td>}
-          </tr>
-        ))}</tbody>
-      </table></div></div>
+            ))}
+            <div style={{marginLeft:'auto',background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'4px 12px',display:'flex',gap:8,alignItems:'center'}}>
+              <span style={{fontSize:10,color:'var(--g3)'}}>Total Geral</span>
+              <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:13,color:'var(--success)'}}>{fmtMoney(filtered.reduce((a,s)=>a+s.total,0))}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="table-wrap">
+          <table>
+            <thead><tr>
+              <th style={{width:28}}></th>
+              <th>Data</th><th>Vendedor</th><th>Cliente</th><th>Loja</th><th>Pagamento</th><th>Status</th><th>Total</th>
+              {isAdmin&&<th></th>}
+            </tr></thead>
+            <tbody>
+              {filtered.map(s=>{
+                const isExp = expanded===s.id;
+                const payResume = s.paymentMethods?.length>1
+                  ? s.paymentMethods.filter(p=>p.value>0).map(p=>`${p.method} ${fmtMoney(p.value)}`).join(' + ')
+                  : s.paymentMethod;
+                return (
+                  <React.Fragment key={s.id}>
+                    <tr onClick={()=>setExpanded(isExp?null:s.id)} style={{cursor:'pointer',background:isExp?'var(--bg3)':'transparent'}}>
+                      <td style={{textAlign:'center',color:'var(--g3)',fontSize:11,userSelect:'none'}}>{isExp?'▲':'▼'}</td>
+                      <td style={{fontSize:12}}>{fmtDate(s.date)}</td>
+                      <td style={{fontSize:12,color:'var(--text)'}}>{s.sellerName}</td>
+                      <td style={{fontSize:11,color:'var(--g3)'}}>{s.clientName||'—'}</td>
+                      <td><span className="badge badge-gray">{s.store}</span></td>
+                      <td style={{fontSize:11,color:'var(--text)',maxWidth:180}}>{payResume}</td>
+                      <td><span className={`badge ${s.paid?'badge-green':'badge-red'}`}>{s.paid?'Pago':'Pendente'}</span></td>
+                      <td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--text)'}}>{fmtMoney(s.total)}</td>
+                      {isAdmin&&<td onClick={e=>e.stopPropagation()}>
+                        <div className="flex gap-8">
+                          <button className="btn-icon" onClick={e=>{e.stopPropagation();setEditSale(s);}} title="Editar">✎</button>
+                          <button className="btn-icon" onClick={e=>handleDelete(s,e)} style={{color:'var(--danger)'}} title="Excluir">🗑</button>
+                        </div>
+                      </td>}
+                    </tr>
+                    {isExp&&(
+                      <tr>
+                        <td colSpan={colSpan} style={{padding:0,background:'var(--bg3)',borderBottom:'2px solid var(--bg5)'}}>
+                          <div style={{padding:'16px 20px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+                            <div>
+                              <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:8}}>Produtos</div>
+                              {(s.items||[]).map((item,i)=>(
+                                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 0',borderBottom:'1px solid var(--bg4)'}}>
+                                  {item.photo
+                                    ? <img src={item.photo} style={{width:32,height:32,borderRadius:4,objectFit:'cover',flexShrink:0}} alt=""/>
+                                    : <div style={{width:32,height:32,borderRadius:4,background:'var(--bg5)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',opacity:.3,fontSize:13}}>▦</div>
+                                  }
+                                  <div style={{flex:1}}>
+                                    <div style={{fontSize:12,color:'var(--text)',fontWeight:500}}>{item.description}</div>
+                                    <div style={{fontSize:10,color:'var(--g3)'}}>{item.code} · {item.qty}x {fmtMoney(item.unitPrice)}</div>
+                                  </div>
+                                  <div style={{fontFamily:'DM Mono,monospace',fontSize:12,fontWeight:700,color:'var(--text)'}}>{fmtMoney(item.total)}</div>
+                                </div>
+                              ))}
+                              {s.discountValue>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'6px 0',fontSize:12}}><span style={{color:'var(--warning)'}}>Desconto</span><span style={{fontFamily:'DM Mono,monospace',color:'var(--warning)'}}>-{fmtMoney(s.discountValue)}</span></div>}
+                              <div style={{display:'flex',justifyContent:'space-between',padding:'8px 0 0',borderTop:'1px solid var(--bg5)',marginTop:4}}>
+                                <span style={{fontWeight:700,fontSize:13,color:'var(--text)'}}>Total</span>
+                                <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:14,color:'var(--text)'}}>{fmtMoney(s.total)}</span>
+                              </div>
+                            </div>
+                            <div>
+                              <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:8}}>Forma de Pagamento</div>
+                              {s.paymentMethods?.length
+                                ? s.paymentMethods.filter(p=>p.value>0).map((p,i)=>(
+                                    <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'var(--bg4)',borderRadius:'var(--r)',marginBottom:6}}>
+                                      <span style={{fontSize:12,color:'var(--text)',fontWeight:500}}>{p.method}</span>
+                                      <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:13,color:p.method==='A prazo'?'var(--warning)':'var(--success)'}}>{fmtMoney(p.value)}</span>
+                                    </div>
+                                  ))
+                                : <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'var(--bg4)',borderRadius:'var(--r)'}}><span style={{fontSize:12,color:'var(--text)',fontWeight:500}}>{s.paymentMethod}</span><span style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:13,color:'var(--success)'}}>{fmtMoney(s.total)}</span></div>
+                              }
+                              {s.troco>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'6px 10px',fontSize:12,color:'var(--g3)'}}><span>Troco devolvido</span><span style={{fontFamily:'DM Mono,monospace'}}>{fmtMoney(s.troco)}</span></div>}
+                              {s.dueDate&&<div style={{marginTop:8,padding:'6px 10px',background:'rgba(255,204,0,.06)',border:'1px solid rgba(255,204,0,.2)',borderRadius:'var(--r)',fontSize:11,color:'var(--warning)'}}>Vencimento: {fmtDate(s.dueDate)}</div>}
+                              {s.note&&<div style={{marginTop:8,padding:'6px 10px',background:'var(--bg4)',borderRadius:'var(--r)',fontSize:11,color:'var(--g3)'}}>📝 {s.note}</div>}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2049,7 +2432,7 @@ function Rankings() {
                 <div style={{fontSize:11,color:'var(--g3)',marginBottom:14}}>{sales.filter(s=>s.store===store).length} vendas · {pct.toFixed(1)}% do total</div>
                 <div className="progress-bar" style={{marginBottom:16}}><div className="progress-fill white" style={{width:`${pct}%`}}/></div>
                 {['Dinheiro','Pix','Cartão','A prazo'].map(method=>{
-                  const mt=sales.filter(s=>s.store===store&&(s.paymentMethod===method||s.paymentMethods?.some(p=>p.method===method))).reduce((a,s)=>a+s.total,0);
+                  const mt=sales.filter(s=>s.store===store).reduce((a,s)=>a+getValorMetodo(s,method),0);
                   const mpct=(mt/(t||1))*100;
                   return (
                     <div key={method} style={{marginBottom:8}}>
@@ -2543,6 +2926,90 @@ function Goals() {
           <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setModal(false)}>Cancelar</button><button className="btn btn-white" onClick={save}>Salvar</button></div>
         </div></div>
       )}
+    </div>
+  );
+}
+
+// ===== TELA DE RESERVAS =====
+function Reservas() {
+  const { reservas, setReservas, deleteReserva, products, sellers, currentUser, addToast } = useContext(AppContext);
+  const isAdmin = currentUser.role === 'admin';
+  const [confirm, setConfirm] = useState(null);
+  const [tab, setTab] = useState('ativas');
+
+  const ativas = reservas.filter(r=>r.ativa);
+  const encerradas = reservas.filter(r=>!r.ativa);
+
+  const cancelarReserva = (r) => {
+    setConfirm({
+      icon:'🔓', titulo:'Cancelar Reserva',
+      msg:`Cancelar reserva de "${r.produtoNome}" para ${r.clienteNome}? O produto voltará a ficar disponível.`,
+      btnLabel:'Cancelar Reserva', btnClass:'btn-danger',
+      onConfirm: () => {
+        setReservas(rs=>rs.map(x=>x.id===r.id?{...x,ativa:false,canceladaEm:new Date().toISOString()}:x));
+        addToast('Reserva cancelada','info'); setConfirm(null);
+      }
+    });
+  };
+
+  const lista = tab==='ativas' ? ativas : encerradas;
+
+  return (
+    <div>
+      {confirm && <ConfirmModal {...confirm} onCancel={()=>setConfirm(null)}/>}
+      <div className="grid-3 mb-24">
+        <div className="stat-card yellow"><div className="stat-label">Reservas Ativas</div><div className="stat-value">{ativas.length}</div><div className="stat-icon">🔒</div></div>
+        <div className="stat-card blue"><div className="stat-label">Produtos Distintos</div><div className="stat-value">{[...new Set(ativas.map(r=>r.produtoId))].length}</div><div className="stat-icon">▦</div></div>
+        <div className="stat-card white"><div className="stat-label">Total Histórico</div><div className="stat-value">{reservas.length}</div><div className="stat-icon">≡</div></div>
+      </div>
+
+      <div className="tabs">
+        <div className={`tab ${tab==='ativas'?'active':''}`} onClick={()=>setTab('ativas')}>🔒 Ativas ({ativas.length})</div>
+        <div className={`tab ${tab==='hist'?'active':''}`} onClick={()=>setTab('hist')}>Histórico ({encerradas.length})</div>
+      </div>
+
+      <div className="card">
+        {lista.length===0 ? (
+          <div className="empty-state"><div className="icon">🔒</div><p>{tab==='ativas'?'Nenhuma reserva ativa no momento':'Nenhuma reserva encerrada'}</p></div>
+        ) : (
+          <div className="table-wrap"><table>
+            <thead><tr><th>Produto</th><th>Loja do Produto</th><th>Cliente</th><th>Vendedor</th><th>Loja Vendedor</th><th>Data</th><th>Status</th>{isAdmin&&tab==='ativas'&&<th></th>}</tr></thead>
+            <tbody>{lista.sort((a,b)=>new Date(b.data)-new Date(a.data)).map(r=>{
+              const prod = products.find(p=>p.id===r.produtoId);
+              return (
+                <tr key={r.id}>
+                  <td>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      {prod?.photo
+                        ? <img src={prod.photo} style={{width:32,height:32,borderRadius:4,objectFit:'cover',border:'1px solid var(--bg5)'}} alt=""/>
+                        : <div style={{width:32,height:32,borderRadius:4,background:'var(--bg4)',display:'flex',alignItems:'center',justifyContent:'center',opacity:.3,fontSize:14}}>▦</div>
+                      }
+                      <div>
+                        <div style={{fontWeight:600,color:'var(--text)',fontSize:13}}>{r.produtoNome}</div>
+                        <div style={{fontSize:10,color:'var(--g3)'}}>{r.produtoCodigo} · {r.qty} un.</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span className="badge badge-blue">{r.produtoLoja}</span></td>
+                  <td style={{fontWeight:600,color:'var(--text)'}}>{r.clienteNome}</td>
+                  <td style={{fontSize:12,color:'var(--g3)'}}>{r.vendedorNome}</td>
+                  <td><span className="badge badge-gray">{r.lojaVendedor}</span></td>
+                  <td style={{fontSize:11,color:'var(--g3)'}}>{fmtDate(r.data)}</td>
+                  <td>
+                    {r.ativa
+                      ? <span className="badge badge-yellow">🔒 Reservado</span>
+                      : <span className="badge badge-gray">Encerrada</span>
+                    }
+                  </td>
+                  {isAdmin&&tab==='ativas'&&<td>
+                    <button className="btn btn-sm btn-danger" onClick={()=>cancelarReserva(r)}>Cancelar</button>
+                  </td>}
+                </tr>
+              );
+            })}</tbody>
+          </table></div>
+        )}
+      </div>
     </div>
   );
 }
