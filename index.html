@@ -146,13 +146,13 @@ tr:hover td{background:var(--bg3)}
 .form-field input:focus,.form-field select:focus,.form-field textarea:focus{border-color:var(--g2)}
 .form-field select option{background:var(--bg3)}
 .form-field textarea{resize:vertical;min-height:70px}
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px;backdrop-filter:blur(4px)}
-.modal{background:var(--bg2);border:1px solid var(--bg4);border-radius:var(--rl);width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
-.modal-lg{max-width:720px}
-.modal-header{padding:18px 20px;border-bottom:1px solid var(--bg4);display:flex;align-items:center;justify-content:space-between;background:var(--bg2);z-index:1;flex-shrink:0}
-.modal-header h3{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:var(--text)}
-.modal-body{padding:20px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch}
-.modal-footer{padding:14px 20px;border-top:1px solid var(--bg4);display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-shrink:0}
+
+
+
+
+
+
+
 .close-btn{width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:var(--bg4);border-radius:var(--r);color:var(--g3);font-size:14px;cursor:pointer;transition:var(--t)}
 .close-btn:hover{color:var(--text)}
 .autocomplete-wrap{position:relative}
@@ -202,7 +202,7 @@ tr:hover td{background:var(--bg3)}
 .light .seller-hero{background:linear-gradient(135deg,#1a1a1a 0%,#2a2a2a 100%)}
 .sale-item-row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:center;padding:8px;background:var(--bg3);border-radius:var(--r);margin-bottom:6px}
 .photo-upload{width:72px;height:72px;border-radius:50%;background:var(--bg3);border:2px dashed var(--bg5);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;overflow:hidden;transition:var(--t)}
-.is-mobile .modal .photo-upload{width:56px;height:56px}
+
 .photo-upload:hover{border-color:var(--g3)}
 .photo-upload img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .photo-upload-ov{position:absolute;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;opacity:0;transition:var(--t)}
@@ -264,24 +264,43 @@ tr:hover td{background:var(--bg3)}
 .is-mobile .grid-3{grid-template-columns:repeat(2,1fr)}
 .is-mobile .grid-2{grid-template-columns:1fr}
 .is-mobile .form-row.cols-3{grid-template-columns:1fr 1fr}
-.is-mobile .modal .form-row.cols-2{grid-template-columns:1fr}
-.is-mobile .modal-body{padding:14px}
-.is-mobile .modal-header{padding:14px 16px}
-.is-mobile .modal-footer{padding:10px 16px}
+
+.is-mobile 
+.is-mobile 
+.is-mobile 
 .is-mobile .stat-value{font-size:22px}
 .is-mobile .chart-wrap{height:160px}
-.is-mobile .modal{max-width:100%;margin:0}
-.is-mobile .modal-overlay{padding:0;align-items:stretch}
-.is-mobile .modal{border-radius:0;max-height:100%;height:100%}
-.is-mobile .modal-overlay{align-items:stretch}
-.is-mobile .modal-body{padding:14px;overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1}
-.is-mobile .modal-footer{position:sticky;bottom:0;background:var(--bg2);z-index:2;padding:12px 14px;padding-bottom:max(12px,env(safe-area-inset-bottom))}
+.is-mobile 
+.is-mobile 
+.is-mobile 
+.is-mobile 
+.is-mobile 
+.is-mobile 
 .is-mobile .sale-item-row{grid-template-columns:1fr auto auto auto}
 .is-mobile table{min-width:500px}
 .is-mobile .tabs{width:100%;overflow-x:auto}
 .is-mobile .seller-hero{padding:16px}
 .is-desktop .bottom-nav{display:none!important}
 .is-desktop .mobile-header{display:none!important}
+
+/* ===== MODAL - REGRAS LIMPAS ===== */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px;backdrop-filter:blur(4px)}
+.modal{background:var(--bg2);border:1px solid var(--bg4);border-radius:var(--rl);width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-lg{max-width:720px}
+.modal-header{padding:18px 20px;border-bottom:1px solid var(--bg4);display:flex;align-items:center;justify-content:space-between;background:var(--bg2);flex-shrink:0}
+.modal-header h3{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:var(--text)}
+.modal-body{padding:20px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch}
+.modal-footer{padding:14px 20px;border-top:1px solid var(--bg4);display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-shrink:0}
+
+/* MODAL MOBILE - TELA CHEIA COM SCROLL E FOOTER SEMPRE VISÍVEL */
+.is-mobile .modal-overlay{position:fixed;inset:0;padding:0;align-items:flex-end;background:rgba(0,0,0,.7)}
+.is-mobile .modal{width:100%;max-width:100%;height:auto;max-height:92svh;border-radius:var(--rl) var(--rl) 0 0;display:flex;flex-direction:column;overflow:hidden;margin:0}
+.is-mobile .modal-header{padding:16px;flex-shrink:0}
+.is-mobile .modal-body{padding:16px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.is-mobile .modal-footer{flex-shrink:0;padding:12px 16px;padding-bottom:max(70px,calc(60px + env(safe-area-inset-bottom,0px)));background:var(--bg2);border-top:1px solid var(--bg4)}
+.is-mobile .modal .form-row.cols-2{grid-template-columns:1fr}
+.is-mobile .modal .form-row.cols-3{grid-template-columns:1fr 1fr}
+.is-mobile .modal .photo-upload{width:56px;height:56px}
 </style>
 </head>
 <body>
@@ -740,7 +759,7 @@ function Login() {
         <div style={{marginTop:12,display:'flex',justifyContent:'center'}}>
           <button style={{background:'none',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 14px',color:'var(--g3)',fontSize:11,cursor:'pointer'}} onClick={()=>setDevice(null)}>⇄ Trocar dispositivo</button>
         </div>
-        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v5.3</div>
+        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v5.4</div>
       </div>
     </div>
   );
