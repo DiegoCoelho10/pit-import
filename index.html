@@ -94,7 +94,9 @@ a{text-decoration:none;color:inherit}
 .top-bar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
 .store-badge{background:var(--bg4);padding:4px 10px;border-radius:20px;font-size:11px;letter-spacing:1px;color:var(--g3)}
 .main-content{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0}
-.page-area{flex:1;overflow-y:auto;padding:20px;padding-bottom:80px;-webkit-overflow-scrolling:touch}
+.page-area{flex:1;overflow-y:scroll;padding:20px;padding-bottom:80px;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+.os-ios .page-area{-webkit-overflow-scrolling:touch;overflow-y:scroll}
+.os-android .page-area{overflow-y:scroll;touch-action:pan-y;overscroll-behavior-y:auto}
 .mobile-header{display:none;background:var(--card-bg);border-bottom:1px solid var(--border);align-items:center;padding:0 16px;gap:12px;flex-shrink:0;min-height:52px;padding-top:env(safe-area-inset-top,0px)}
 .mobile-header h2{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--text)}
 .card{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--rl);padding:18px}
@@ -259,7 +261,7 @@ tr:hover td{background:var(--bg3)}
 .is-mobile .bottom-nav{display:flex!important}
 .is-mobile .mobile-header{display:flex!important}
 .is-mobile .top-bar{display:none!important}
-.is-mobile .page-area{padding:14px 12px;padding-bottom:140px;-webkit-overflow-scrolling:touch}
+.is-mobile .page-area{padding:14px 12px;padding-bottom:140px;-webkit-overflow-scrolling:touch;touch-action:pan-y}
 .is-mobile .grid-4{grid-template-columns:repeat(2,1fr)}
 .is-mobile .grid-3{grid-template-columns:repeat(2,1fr)}
 .is-mobile .grid-2{grid-template-columns:1fr}
@@ -311,6 +313,15 @@ window.LOGO_URL="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' vi
 </script>
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback, createContext, useContext } = React;
+
+// Detectar iOS e Android e aplicar classes no html
+(function() {
+  const ua = navigator.userAgent || '';
+  const isIOS = /iphone|ipad|ipod/i.test(ua);
+  const isAndroid = /android/i.test(ua);
+  if (isIOS) document.documentElement.classList.add('os-ios');
+  if (isAndroid) document.documentElement.classList.add('os-android');
+})();
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDiN8LDHLuXBetS2sVrLFPIjSKWop5kuPU",
@@ -760,7 +771,7 @@ function Login() {
         <div style={{marginTop:12,display:'flex',justifyContent:'center'}}>
           <button style={{background:'none',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 14px',color:'var(--g3)',fontSize:11,cursor:'pointer'}} onClick={()=>setDevice(null)}>⇄ Trocar dispositivo</button>
         </div>
-        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v5.9</div>
+        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v6.0</div>
       </div>
     </div>
   );
