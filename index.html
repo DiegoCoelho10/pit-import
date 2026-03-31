@@ -91,7 +91,7 @@ a{text-decoration:none;color:inherit}
 .top-bar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
 .store-badge{background:var(--bg4);padding:4px 10px;border-radius:20px;font-size:11px;letter-spacing:1px;color:var(--g3)}
 .main-content{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
-.page-area{flex:1;overflow-y:auto;padding:20px}
+.page-area{flex:1;overflow-y:auto;padding:20px;padding-bottom:40px}
 .mobile-header{display:none;height:52px;background:var(--card-bg);border-bottom:1px solid var(--border);align-items:center;padding:0 16px;gap:12px;flex-shrink:0}
 .mobile-header h2{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--text)}
 .card{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--rl);padding:18px}
@@ -203,7 +203,7 @@ tr:hover td{background:var(--bg3)}
 .photo-upload img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .photo-upload-ov{position:absolute;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;opacity:0;transition:var(--t)}
 .photo-upload:hover .photo-upload-ov{opacity:1}
-.table-scroll{max-height:380px;overflow-y:auto}
+.table-scroll{overflow-y:visible}
 .firebase-status{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:1px}
 .firebase-dot{width:6px;height:6px;border-radius:50%;background:var(--danger);animation:pulse 2s infinite}
 .firebase-dot.connected{background:var(--success);animation:none}
@@ -255,7 +255,7 @@ tr:hover td{background:var(--bg3)}
 .is-mobile .bottom-nav{display:flex!important}
 .is-mobile .mobile-header{display:flex!important}
 .is-mobile .top-bar{display:none!important}
-.is-mobile .page-area{padding:14px 12px;padding-bottom:76px}
+.is-mobile .page-area{padding:14px 12px;padding-bottom:100px}
 .is-mobile .grid-4{grid-template-columns:repeat(2,1fr)}
 .is-mobile .grid-3{grid-template-columns:repeat(2,1fr)}
 .is-mobile .grid-2{grid-template-columns:1fr}
@@ -1747,6 +1747,18 @@ function NewSale() {
             </div>
           </div>
         )}
+        {/* Reservas pendentes na venda atual */}
+        {reservas.filter(r=>r.ativa&&r.vendedorId===selectedSeller).length>0&&(
+          <div style={{marginTop:10,padding:'10px 14px',background:'rgba(255,204,0,.06)',border:'1px solid rgba(255,204,0,.2)',borderRadius:'var(--r)'}}>
+            <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--warning)',marginBottom:6}}>🔒 Reservas deste vendedor</div>
+            {reservas.filter(r=>r.ativa&&r.vendedorId===selectedSeller).map(r=>(
+              <div key={r.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:12,padding:'4px 0',borderBottom:'1px solid rgba(255,204,0,.1)'}}>
+                <span style={{color:'var(--text)',fontWeight:500}}>{r.produtoNome}</span>
+                <span style={{color:'var(--g3)',fontSize:11}}>{r.clienteNome} · {r.tipoEntrega==='entregar'?'📦 Entrega':'🏪 Retira'}</span>
+              </div>
+            ))}
+          </div>
+        )}
         {items.length>0 && (
           <div style={{display:'flex',justifyContent:'flex-end',marginTop:14}}>
             <button className="btn btn-white" style={{padding:'11px 28px',fontSize:13}} onClick={submitSale}>✓ FINALIZAR VENDA</button>
@@ -3162,10 +3174,11 @@ function Goals() {
 
 // ===== TELA DE RESERVAS =====
 function Reservas() {
-  const { reservas, setReservas, deleteReserva, products, sellers, currentUser, addToast } = useContext(AppContext);
+  const { reservas, setReservas, products, setProducts, clients, currentUser, addToast, addMovement } = useContext(AppContext);
   const isAdmin = currentUser.role === 'admin';
   const [confirm, setConfirm] = useState(null);
   const [tab, setTab] = useState('ativas');
+  const [expanded, setExpanded] = useState(null);
 
   const ativas = reservas.filter(r=>r.ativa);
   const encerradas = reservas.filter(r=>!r.ativa);
@@ -3173,11 +3186,34 @@ function Reservas() {
   const cancelarReserva = (r) => {
     setConfirm({
       icon:'🔓', titulo:'Cancelar Reserva',
-      msg:`Cancelar reserva de "${r.produtoNome}" para ${r.clienteNome}? O produto voltará a ficar disponível.`,
-      btnLabel:'Cancelar Reserva', btnClass:'btn-danger',
+      msg:`Cancelar reserva de "${r.produtoNome}" para ${r.clienteNome}? O produto voltará a ficar disponível sem baixa no estoque.`,
+      btnLabel:'Cancelar', btnClass:'btn-danger',
       onConfirm: () => {
-        setReservas(rs=>rs.map(x=>x.id===r.id?{...x,ativa:false,canceladaEm:new Date().toISOString()}:x));
+        setReservas(rs=>rs.map(x=>x.id===r.id?{...x,ativa:false,status:'cancelada',canceladaEm:new Date().toISOString()}:x));
         addToast('Reserva cancelada','info'); setConfirm(null);
+      }
+    });
+  };
+
+  const marcarEntregue = (r) => {
+    const acao = r.tipoEntrega==='entregar' ? 'entregue ao cliente' : 'retirado na loja';
+    setConfirm({
+      icon: r.tipoEntrega==='entregar'?'📦':'🏪',
+      titulo: r.tipoEntrega==='entregar'?'CONFIRMAR ENTREGA':'CONFIRMAR RETIRADA',
+      msg: `Confirmar que "${r.produtoNome}" foi ${acao} por ${r.clienteNome}? O estoque da loja ${r.produtoLoja} será baixado.`,
+      btnLabel:'Confirmar', btnClass:'btn-success',
+      onConfirm: () => {
+        // dar baixa no estoque da loja do produto
+        setProducts(ps=>ps.map(p=>{
+          if(p.id===r.produtoId) {
+            addMovement(p.id, r.tipoEntrega==='entregar'?'entrega':'retirada', r.qty, `Reserva ${r.clienteNome}`);
+            return {...p, qty: Math.max(0, p.qty - r.qty)};
+          }
+          return p;
+        }));
+        setReservas(rs=>rs.map(x=>x.id===r.id?{...x,ativa:false,status:r.tipoEntrega==='entregar'?'entregue':'retirado',encerradaEm:new Date().toISOString()}:x));
+        addToast(r.tipoEntrega==='entregar'?'Entrega confirmada! Estoque baixado.':'Retirada confirmada! Estoque baixado.','success');
+        setConfirm(null); setExpanded(null);
       }
     });
   };
@@ -3203,38 +3239,97 @@ function Reservas() {
           <div className="empty-state"><div className="icon">🔒</div><p>{tab==='ativas'?'Nenhuma reserva ativa no momento':'Nenhuma reserva encerrada'}</p></div>
         ) : (
           <div className="table-wrap"><table>
-            <thead><tr><th>Produto</th><th>Loja do Produto</th><th>Cliente</th><th>Vendedor</th><th>Loja Vendedor</th><th>Data</th><th>Status</th>{isAdmin&&tab==='ativas'&&<th></th>}</tr></thead>
+            <thead><tr>
+              <th style={{width:28}}></th>
+              <th>Produto</th><th>Loja</th><th>Cliente</th><th>Vendedor</th><th>Data</th><th>Tipo</th><th>Status</th>
+              {tab==='ativas'&&<th></th>}
+            </tr></thead>
             <tbody>{lista.sort((a,b)=>new Date(b.data)-new Date(a.data)).map(r=>{
               const prod = products.find(p=>p.id===r.produtoId);
+              const isExp = expanded===r.id;
+              const statusColor = r.status==='entregue'||r.status==='retirado'?'badge-green':r.status==='cancelada'?'badge-red':'badge-yellow';
+              const statusLabel = r.status==='entregue'?'✓ Entregue':r.status==='retirado'?'✓ Retirado':r.status==='cancelada'?'Cancelada':'🔒 Reservado';
               return (
-                <tr key={r.id}>
-                  <td>
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      {prod?.photo
-                        ? <img src={prod.photo} style={{width:32,height:32,borderRadius:4,objectFit:'cover',border:'1px solid var(--bg5)'}} alt=""/>
-                        : <div style={{width:32,height:32,borderRadius:4,background:'var(--bg4)',display:'flex',alignItems:'center',justifyContent:'center',opacity:.3,fontSize:14}}>▦</div>
-                      }
-                      <div>
-                        <div style={{fontWeight:600,color:'var(--text)',fontSize:13}}>{r.produtoNome}</div>
-                        <div style={{fontSize:10,color:'var(--g3)'}}>{r.produtoCodigo} · {r.qty} un.</div>
+                <React.Fragment key={r.id}>
+                  <tr onClick={()=>setExpanded(isExp?null:r.id)} style={{cursor:'pointer',background:isExp?'var(--bg3)':'transparent'}}>
+                    <td style={{textAlign:'center',color:'var(--g3)',fontSize:11}}>{isExp?'▲':'▼'}</td>
+                    <td>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        {prod?.photo
+                          ? <img src={prod.photo} style={{width:30,height:30,borderRadius:4,objectFit:'cover'}} alt=""/>
+                          : <div style={{width:30,height:30,borderRadius:4,background:'var(--bg4)',display:'flex',alignItems:'center',justifyContent:'center',opacity:.3,fontSize:13}}>▦</div>
+                        }
+                        <div>
+                          <div style={{fontWeight:600,color:'var(--text)',fontSize:12}}>{r.produtoNome}</div>
+                          <div style={{fontSize:10,color:'var(--g3)'}}>{r.qty} un.</div>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td><span className="badge badge-blue">{r.produtoLoja}</span></td>
-                  <td style={{fontWeight:600,color:'var(--text)'}}>{r.clienteNome}<div style={{fontSize:9,color:'var(--g3)',marginTop:2}}>{r.tipoEntrega==='entregar'?'📦 Entrega':'🏪 Retira na loja'}</div></td>
-                  <td style={{fontSize:12,color:'var(--g3)'}}>{r.vendedorNome}</td>
-                  <td><span className="badge badge-gray">{r.lojaVendedor}</span></td>
-                  <td style={{fontSize:11,color:'var(--g3)'}}>{fmtDate(r.data)}</td>
-                  <td>
-                    {r.ativa
-                      ? <span className="badge badge-yellow">🔒 Reservado</span>
-                      : <span className="badge badge-gray">Encerrada</span>
-                    }
-                  </td>
-                  {isAdmin&&tab==='ativas'&&<td>
-                    <button className="btn btn-sm btn-danger" onClick={()=>cancelarReserva(r)}>Cancelar</button>
-                  </td>}
-                </tr>
+                    </td>
+                    <td><span className="badge badge-blue">{r.produtoLoja}</span></td>
+                    <td style={{fontWeight:600,color:'var(--text)',fontSize:12}}>{r.clienteNome}</td>
+                    <td style={{fontSize:11,color:'var(--g3)'}}>{r.vendedorNome}</td>
+                    <td style={{fontSize:11,color:'var(--g3)'}}>{fmtDate(r.data)}</td>
+                    <td><span style={{fontSize:11}}>{r.tipoEntrega==='entregar'?'📦 Entrega':'🏪 Retira'}</span></td>
+                    <td><span className={`badge ${statusColor}`}>{statusLabel}</span></td>
+                    {tab==='ativas'&&<td onClick={e=>e.stopPropagation()}>
+                      <div className="flex gap-8">
+                        <button className="btn btn-sm btn-success" onClick={e=>{e.stopPropagation();marcarEntregue(r);}}>
+                          {r.tipoEntrega==='entregar'?'📦 Entregar':'🏪 Retirar'}
+                        </button>
+                        {isAdmin&&<button className="btn btn-sm btn-danger" onClick={e=>{e.stopPropagation();cancelarReserva(r);}}>Cancelar</button>}
+                      </div>
+                    </td>}
+                  </tr>
+                  {isExp&&(
+                    <tr>
+                      <td colSpan={tab==='ativas'?9:8} style={{padding:0,background:'var(--bg3)',borderBottom:'2px solid var(--bg5)'}}>
+                        <div style={{padding:'16px 20px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
+                          {/* Dados do produto */}
+                          <div>
+                            <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:8}}>Produto Reservado</div>
+                            <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:10}}>
+                              {prod?.photo&&<img src={prod.photo} style={{width:48,height:48,borderRadius:6,objectFit:'cover'}} alt=""/>}
+                              <div>
+                                <div style={{fontWeight:700,fontSize:14,color:'var(--text)'}}>{r.produtoNome}</div>
+                                <div style={{fontSize:11,color:'var(--g3)'}}>{r.produtoCodigo}</div>
+                                <div style={{fontSize:11,color:'var(--g3)'}}>Estoque em: <strong style={{color:'var(--info)'}}>{r.produtoLoja}</strong></div>
+                                <div style={{fontSize:11,color:'var(--g3)'}}>Qtd reservada: <strong style={{color:'var(--text)'}}>{r.qty} un.</strong></div>
+                              </div>
+                            </div>
+                            <div style={{padding:'8px 10px',background:'var(--bg4)',borderRadius:'var(--r)',fontSize:11,color:'var(--g3)'}}>
+                              Reservado em: {fmtDate(r.data)} · por {r.vendedorNome} ({r.lojaVendedor})
+                            </div>
+                            {r.encerradaEm&&<div style={{padding:'6px 10px',fontSize:10,color:'var(--g3)',marginTop:4}}>
+                              {r.status==='entregue'?'Entregue':'Retirado'} em: {fmtDate(r.encerradaEm)}
+                            </div>}
+                          </div>
+                          {/* Dados do cliente */}
+                          <div>
+                            <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:8}}>Cliente</div>
+                            <div style={{padding:'12px 14px',background:'var(--bg4)',borderRadius:'var(--r)'}}>
+                              <div style={{fontWeight:700,fontSize:15,color:'var(--text)',marginBottom:6}}>{r.clienteNome}</div>
+                              {(()=>{
+                                const cli = clients?.find(cl=>cl.name===r.clienteNome||cl.id===r.clienteId);
+                                if(!cli) return <div style={{fontSize:11,color:'var(--g3)'}}>Cliente não cadastrado no sistema</div>;
+                                return <>
+                                  {cli.phone&&<div style={{fontSize:12,color:'var(--g3)',marginBottom:3}}>📞 {cli.phone}</div>}
+                                  {cli.cpf&&<div style={{fontSize:12,color:'var(--g3)',marginBottom:3}}>CPF: {cli.cpf}</div>}
+                                  {(cli.rua||cli.bairro)&&<div style={{fontSize:12,color:'var(--g3)',marginBottom:3}}>📍 {[cli.rua,cli.numero,cli.bairro].filter(Boolean).join(', ')}</div>}
+                                  {cli.email&&<div style={{fontSize:12,color:'var(--g3)'}}>✉ {cli.email}</div>}
+                                </>;
+                              })()}
+                            </div>
+                            <div style={{marginTop:8,padding:'10px 14px',background:r.tipoEntrega==='entregar'?'rgba(68,170,255,.06)':'rgba(68,255,136,.06)',border:`1px solid ${r.tipoEntrega==='entregar'?'rgba(68,170,255,.2)':'rgba(68,255,136,.2)'}`,borderRadius:'var(--r)'}}>
+                              <div style={{fontWeight:700,fontSize:13,color:r.tipoEntrega==='entregar'?'var(--info)':'var(--success)'}}>
+                                {r.tipoEntrega==='entregar'?'📦 ENTREGA AO CLIENTE':'🏪 RETIRADA NA LOJA '+r.produtoLoja}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               );
             })}</tbody>
           </table></div>
