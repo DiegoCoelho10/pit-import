@@ -202,6 +202,7 @@ tr:hover td{background:var(--bg3)}
 .light .seller-hero{background:linear-gradient(135deg,#1a1a1a 0%,#2a2a2a 100%)}
 .sale-item-row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:center;padding:8px;background:var(--bg3);border-radius:var(--r);margin-bottom:6px}
 .photo-upload{width:72px;height:72px;border-radius:50%;background:var(--bg3);border:2px dashed var(--bg5);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;overflow:hidden;transition:var(--t)}
+.is-mobile .modal .photo-upload{width:56px;height:56px}
 .photo-upload:hover{border-color:var(--g3)}
 .photo-upload img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .photo-upload-ov{position:absolute;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;opacity:0;transition:var(--t)}
@@ -264,11 +265,14 @@ tr:hover td{background:var(--bg3)}
 .is-mobile .grid-2{grid-template-columns:1fr}
 .is-mobile .form-row.cols-3{grid-template-columns:1fr 1fr}
 .is-mobile .modal .form-row.cols-2{grid-template-columns:1fr}
+.is-mobile .modal-body{padding:14px}
+.is-mobile .modal-header{padding:14px 16px}
+.is-mobile .modal-footer{padding:10px 16px}
 .is-mobile .stat-value{font-size:22px}
 .is-mobile .chart-wrap{height:160px}
 .is-mobile .modal{max-width:100%;margin:0}
 .is-mobile .modal-overlay{padding:0;align-items:flex-end;padding-bottom:env(safe-area-inset-bottom,0px)}
-.is-mobile .modal{border-radius:var(--rl) var(--rl) 0 0;max-height:88vh}
+.is-mobile .modal{border-radius:var(--rl) var(--rl) 0 0;max-height:85svh;max-height:85dvh}
 .is-mobile .sale-item-row{grid-template-columns:1fr auto auto auto}
 .is-mobile table{min-width:500px}
 .is-mobile .tabs{width:100%;overflow-x:auto}
@@ -733,7 +737,7 @@ function Login() {
         <div style={{marginTop:12,display:'flex',justifyContent:'center'}}>
           <button style={{background:'none',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 14px',color:'var(--g3)',fontSize:11,cursor:'pointer'}} onClick={()=>setDevice(null)}>⇄ Trocar dispositivo</button>
         </div>
-        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v5.1</div>
+        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v5.2</div>
       </div>
     </div>
   );
