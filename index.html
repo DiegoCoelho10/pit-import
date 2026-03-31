@@ -518,7 +518,13 @@ function AppProvider({ children }) {
   const setGoals = useCallback((updOrFn) => {
     setGoalsRaw(prev => {
       const next = typeof updOrFn === 'function' ? updOrFn(prev) : updOrFn;
-      if (FIREBASE_CONFIGURED && db) next.forEach(g => saveGoal(g.id||(g.sellerId+'_'+g.month+'_'+g.year), g));
+      if (FIREBASE_CONFIGURED && db) {
+        next.forEach(g => {
+          const key = g.id || ('goal_'+g.sellerId+'_'+g.month+'_'+g.year);
+          const gWithId = {...g, id: key};
+          saveGoal(key, gWithId);
+        });
+      }
       return next;
     });
   }, [saveGoal]);
@@ -650,6 +656,8 @@ function somVenda() {
 function BarcodeScanner({ onDetect, onClose }) {
   const videoRef = useRef(null), streamRef = useRef(null);
   const [error, setError] = useState('');
+  const [manualMode, setManualMode] = useState(false);
+  const [manualCode, setManualCode] = useState('');
   useEffect(() => {
     let intervalId;
     const startCamera = async () => {
@@ -666,7 +674,7 @@ function BarcodeScanner({ onDetect, onClose }) {
               if (barcodes.length > 0) { clearInterval(intervalId); stopCamera(); bipScanner(); onDetect(barcodes[0].rawValue); }
             } catch(e) {}
           }, 300);
-        } else { setError('BarcodeDetector não suportado neste navegador. Use Chrome/Edge.'); }
+        } else { setError('Câmera ativa. Digite o código manualmente abaixo ou use Chrome para detecção automática.'); setManualMode(true); }
       } catch(e) { setError('Câmera não disponível. Verifique as permissões.'); }
     };
     const stopCamera = () => {
@@ -687,6 +695,14 @@ function BarcodeScanner({ onDetect, onClose }) {
             <div className="scanner-overlay"><div className="scanner-frame"><div className="scanner-line"/></div></div>
           </div>
           <div className="scanner-label">Aponte a câmera para o código de barras</div>
+          <div style={{display:'flex',gap:6,marginTop:8}}>
+            <input value={manualCode} onChange={e=>setManualCode(e.target.value)}
+              onKeyDown={e=>{if(e.key==='Enter'&&manualCode.trim()){onDetect(manualCode.trim());setManualCode('');}}}
+              placeholder="Ou digite o código aqui..."
+              style={{flex:1,background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13}}/>
+            <button className="btn btn-sm btn-white" onClick={()=>{if(manualCode.trim()){onDetect(manualCode.trim());setManualCode('');}}} style={{whiteSpace:'nowrap'}}>OK</button>
+            <button className="btn btn-sm btn-outline" onClick={onClose}>✕</button>
+          </div>
         </>
       )}
     </div>
@@ -784,7 +800,7 @@ function Login() {
         <div style={{marginTop:12,display:'flex',justifyContent:'center'}}>
           <button style={{background:'none',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 14px',color:'var(--g3)',fontSize:11,cursor:'pointer'}} onClick={()=>setDevice(null)}>⇄ Trocar dispositivo</button>
         </div>
-        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v6.5</div>
+        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v6.6</div>
       </div>
     </div>
   );
@@ -1540,6 +1556,9 @@ function NewSale() {
   const [showClientAuto, setShowClientAuto] = useState(false);
   const [reservarCliente, setReservarCliente] = useState('');
   const [reservarEntrega, setReservarEntrega] = useState('retirar');
+  const [reservarQty, setReservarQty] = useState(1);
+  const [lastSale, setLastSale] = useState(null);
+  const [showReceipt, setShowReceipt] = useState(false);
   const searchRef = useRef();
 
   // produtos da loja atual + produtos de outra loja (para mostrar opção de reservar)
@@ -1574,24 +1593,40 @@ function NewSale() {
     const disp = qtdDisponivel(reservarModal);
     if(disp <= 0) return addToast('Produto sem estoque disponível para reserva','error');
     const seller = sellers.find(s=>s.id===selectedSeller) || currentUser;
+    const reservaId = 'res'+Date.now();
     const novaReserva = {
-      id: 'res'+Date.now(),
+      id: reservaId,
       produtoId: reservarModal.id,
       produtoNome: reservarModal.description,
       produtoCodigo: reservarModal.code,
       produtoLoja: reservarModal.store,
-      qty: 1,
+      qty: reservarQty||1,
       vendedorId: seller.id,
       vendedorNome: seller.name,
       lojaVendedor: store,
       clienteNome: reservarCliente,
+      clienteId: clientId||'',
       tipoEntrega: reservarEntrega,
       data: new Date().toISOString(),
       ativa: true,
+      pago: true,
     };
     setReservas(rs=>[...rs, novaReserva]);
-    addToast('Produto reservado para '+reservarCliente+'!','success');
-    setReservarModal(null); setReservarCliente(''); setReservarEntrega('retirar');
+    // Adicionar na nota da venda como item reservado
+    const unitPrice = reservarModal.salePrice||0;
+    setItems(it=>{
+      const ex=it.find(i=>i.productId===reservarModal.id&&i.reservaId===reservaId);
+      if(ex) return it;
+      return [...it,{
+        productId:reservarModal.id, code:reservarModal.code,
+        description:reservarModal.description+'  🔒reservado',
+        photo:reservarModal.photo||null, qty:reservarQty||1,
+        unitPrice, total:(reservarQty||1)*unitPrice,
+        reservaId, reservado:true, lojaOrigem:reservarModal.store
+      }];
+    });
+    addToast('Reservado e adicionado à nota! Cliente paga agora.','success');
+    setReservarModal(null); setReservarCliente(''); setReservarEntrega('retirar'); setReservarQty(1);
   };
 
   const updateQty = (productId, qty) => {
@@ -1604,7 +1639,7 @@ function NewSale() {
   const total = Math.max(0, subtotal - discountValue);
 
   const hasDinheiro = payMethods.some(p=>p.method==='Dinheiro');
-  const troco = hasDinheiro ? Math.max(0, (Number(receivedAmount)||0) - total) : 0;
+  const troco = payMethods.filter(p=>p.method==='Dinheiro').reduce((a,p)=>a+Math.max(0,(Number(p.received)||0)-(Number(p.value)||0)),0);
 
   const addPayMethod = () => setPayMethods(m=>[...m,{method:'Pix',value:'',dueDate:''}]);
   const removePayMethod = (i) => setPayMethods(m=>m.filter((_,idx)=>idx!==i));
@@ -1636,10 +1671,12 @@ function NewSale() {
       paymentMethod: payMethods.length===1 ? payMethods[0].method : 'Múltiplos',
       clientId: clientId||'', clientName: clientName||'',
       dueDate: dueDateMain, paid: isPaid,
-      receivedAmount: hasDinheiro ? (Number(receivedAmount)||0) : 0, troco,
+      receivedAmount: payMethods.filter(p=>p.method==='Dinheiro').reduce((a,p)=>a+(Number(p.received)||0),0), troco,
     };
     setSales(s=>[...s,sale]);
-    setProducts(ps=>ps.map(p=>{const item=items.find(i=>i.productId===p.id);if(!item) return p;addMovement(p.id,'saída',item.qty,'Venda #'+sale.id.slice(-4));return {...p,qty:p.qty-item.qty};}));
+    setProducts(ps=>ps.map(p=>{const item=items.find(i=>i.productId===p.id&&!i.reservado);if(!item) return p;addMovement(p.id,'saída',item.qty,'Venda #'+sale.id.slice(-4));return {...p,qty:p.qty-item.qty};}));
+    setLastSale(sale);
+    setShowReceipt(true);
     setItems([]); setClientName(''); setClientId(''); setDiscount(0); setPayMethods([{method:'Dinheiro',value:'',dueDate:''}]); setReceivedAmount('');
     somVenda();
     addToast('Venda registrada! 🎉','success');
@@ -1647,6 +1684,60 @@ function NewSale() {
 
   return (
     <div style={{WebkitOverflowScrolling:'touch'}}>
+
+      {/* NOTINHA */}
+      {showReceipt && lastSale && (
+        <div className="modal-overlay" style={{zIndex:2000}}>
+          <div style={{background:'#fff',color:'#111',borderRadius:8,padding:24,width:'100%',maxWidth:380,maxHeight:'90vh',overflowY:'auto',fontFamily:'DM Mono,monospace'}}>
+            <div style={{textAlign:'center',marginBottom:16}}>
+              <div style={{fontSize:20,fontWeight:900,letterSpacing:4,marginBottom:2}}>PIT IMPORT</div>
+              <div style={{fontSize:11,color:'#555'}}>{lastSale.store}</div>
+              <div style={{fontSize:11,color:'#555'}}>{new Date(lastSale.date).toLocaleString('pt-BR')}</div>
+              <div style={{fontSize:11,color:'#555'}}>Vendedor: {lastSale.sellerName}</div>
+              {lastSale.clientName&&<div style={{fontSize:11,color:'#555'}}>Cliente: {lastSale.clientName}</div>}
+              <div style={{borderTop:'1px dashed #ccc',margin:'10px 0'}}/>
+            </div>
+            {lastSale.items.map((it,i)=>(
+              <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:6}}>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700}}>{it.description.replace('  🔒reservado',' [RESERVADO]')}</div>
+                  <div style={{color:'#555'}}>{it.qty}x {fmtMoney(it.unitPrice)}</div>
+                </div>
+                <div style={{fontWeight:700,marginLeft:8}}>{fmtMoney(it.total)}</div>
+              </div>
+            ))}
+            <div style={{borderTop:'1px dashed #ccc',margin:'10px 0'}}/>
+            {lastSale.discountValue>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}}>
+              <span>Subtotal</span><span>{fmtMoney(lastSale.subtotal)}</span>
+            </div>}
+            {lastSale.discountValue>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#e55',marginBottom:4}}>
+              <span>Desconto</span><span>-{fmtMoney(lastSale.discountValue)}</span>
+            </div>}
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:18,fontWeight:900,margin:'8px 0'}}>
+              <span>TOTAL</span><span>{fmtMoney(lastSale.total)}</span>
+            </div>
+            <div style={{borderTop:'1px dashed #ccc',margin:'10px 0'}}/>
+            {lastSale.paymentMethods?.map((pm,i)=>(
+              <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}>
+                <span>{pm.method}</span><span>{fmtMoney(pm.value)}</span>
+              </div>
+            ))}
+            {lastSale.receivedAmount>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginTop:4}}>
+              <span>Recebido</span><span>{fmtMoney(lastSale.receivedAmount)}</span>
+            </div>}
+            {lastSale.troco>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:14,fontWeight:700,color:'#1a7a1a',marginTop:4}}>
+              <span>TROCO</span><span>{fmtMoney(lastSale.troco)}</span>
+            </div>}
+            <div style={{borderTop:'1px dashed #ccc',margin:'10px 0'}}/>
+            <div style={{textAlign:'center',fontSize:11,color:'#555',marginBottom:16}}>Obrigado pela preferência!</div>
+            <div style={{display:'flex',gap:8}}>
+              <button className="btn btn-white" style={{flex:1,background:'#111',color:'#fff'}} onClick={()=>window.print()}>🖨 Imprimir</button>
+              <button className="btn btn-outline" style={{flex:1,border:'1px solid #ccc',color:'#111'}} onClick={()=>setShowReceipt(false)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de reserva */}
       {reservarModal && (
         <div className="modal-overlay"><div className="modal">
@@ -1669,9 +1760,13 @@ function NewSale() {
               </select>
             </div>
           </div>
+            <div className="form-field" style={{marginTop:10}}>
+              <label>Quantidade</label>
+              <input type="number" min="1" value={reservarQty} onChange={e=>setReservarQty(Math.max(1,parseInt(e.target.value)||1))} style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13,width:80}}/>
+            </div>
           <div className="modal-footer">
             <button className="btn btn-outline" onClick={()=>setReservarModal(null)}>Cancelar</button>
-            <button className="btn btn-white" onClick={confirmarReserva}>🔒 Reservar</button>
+            <button className="btn btn-white" onClick={confirmarReserva}>🔒 Reservar e Cobrar</button>
           </div>
         </div></div>
       )}
@@ -1827,36 +1922,37 @@ function NewSale() {
         )}
       </div>
 
-      {/* ITEM 9: PAGAMENTO */}
+      {/* PAGAMENTO */}
       <div className="card mb-16">
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
           <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,color:'var(--text)'}}>PAGAMENTO</div>
           <button className="btn btn-sm btn-outline" onClick={addPayMethod}>+ Método</button>
         </div>
-        {payMethods.map((pm,i)=>(
-          <div key={i} className="pay-method-row">
-            <select value={pm.method} onChange={e=>updatePayMethod(i,'method',e.target.value)} style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:13,flex:'0 0 130px'}}>
-              <option>Dinheiro</option><option>Pix</option><option>Cartão</option><option>A prazo</option>
-            </select>
-            <input type="number" step="0.01" min="0" value={pm.value} onChange={e=>updatePayMethod(i,'value',e.target.value)} placeholder="Valor (R$)" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:13,flex:1,minWidth:0}}/>
-            {pm.method==='A prazo' && (
-              <input type="date" value={pm.dueDate} onChange={e=>updatePayMethod(i,'dueDate',e.target.value)} style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:13,flex:'0 0 150px'}}/>
-            )}
-            {payMethods.length>1 && <button className="btn-icon" onClick={()=>removePayMethod(i)} style={{color:'var(--danger)',flexShrink:0}}>✕</button>}
+        {payMethods.map((pm,i)=>{
+          const isDinheiro = pm.method==='Dinheiro';
+          const valorPago = Number(pm.received||0);
+          const trocoItem = isDinheiro && valorPago>0 ? Math.max(0, valorPago - (Number(pm.value)||0)) : 0;
+          return (
+          <div key={i} style={{marginBottom:8,padding:'10px 12px',background:'var(--bg3)',borderRadius:'var(--r)',border:'1px solid var(--bg5)'}}>
+            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:isDinheiro?8:0}}>
+              <select value={pm.method} onChange={e=>updatePayMethod(i,'method',e.target.value)} style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:13,flex:'0 0 120px'}}>
+                <option>Dinheiro</option><option>Pix</option><option>Cartão</option><option>A prazo</option>
+              </select>
+              <input type="number" step="0.01" min="0" value={pm.value} onChange={e=>updatePayMethod(i,'value',e.target.value)} placeholder="Valor (R$)" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:13,flex:1,minWidth:0}}/>
+              {pm.method==='A prazo' && <input type="date" value={pm.dueDate} onChange={e=>updatePayMethod(i,'dueDate',e.target.value)} style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:12,flex:'0 0 140px'}}/>}
+              {payMethods.length>1 && <button className="btn-icon" onClick={()=>removePayMethod(i)} style={{color:'var(--danger)',flexShrink:0}}>✕</button>}
+            </div>
+            {isDinheiro&&<div style={{display:'flex',alignItems:'center',gap:8}}>
+              <span style={{fontSize:11,color:'var(--g3)',whiteSpace:'nowrap'}}>Recebido:</span>
+              <input type="number" step="0.01" min="0" value={pm.received||''} onChange={e=>updatePayMethod(i,'received',e.target.value)} placeholder="Valor recebido" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'5px 8px',color:'var(--text)',fontSize:13,flex:1}}/>
+              {valorPago>0&&<div style={{display:'flex',gap:6,alignItems:'center',background:trocoItem>=0?'rgba(68,255,136,.08)':'rgba(255,68,68,.08)',padding:'4px 10px',borderRadius:'var(--r)',border:`1px solid ${trocoItem>=0?'rgba(68,255,136,.3)':'rgba(255,68,68,.3)'}`}}>
+                <span style={{fontSize:11,color:'var(--g3)'}}>Troco:</span>
+                <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:14,color:trocoItem>=0?'var(--success)':'var(--danger)'}}>{fmtMoney(trocoItem)}</span>
+              </div>}
+            </div>}
           </div>
-        ))}
-        {hasDinheiro && (
-          <div style={{display:'flex',alignItems:'center',gap:10,marginTop:8,padding:'10px 12px',background:'var(--bg3)',borderRadius:'var(--r)',border:'1px solid var(--bg5)'}}>
-            <span style={{fontSize:12,color:'var(--g3)',whiteSpace:'nowrap'}}>Recebido (R$):</span>
-            <input type="number" step="0.01" min="0" value={receivedAmount} onChange={e=>setReceivedAmount(e.target.value)} placeholder="0,00" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:13,flex:1}}/>
-            {Number(receivedAmount)>0 && (
-              <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                <span style={{fontSize:11,color:'var(--g3)',whiteSpace:'nowrap'}}>Troco:</span>
-                <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:15,color:troco>=0?'var(--success)':'var(--danger)',whiteSpace:'nowrap'}}>{fmtMoney(troco)}</span>
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })}
         {items.length>0 && (
           <div style={{background:'var(--bg3)',borderRadius:'var(--r)',padding:'14px 16px',marginTop:12,border:'1px solid var(--bg5)'}}>
             <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
@@ -2241,7 +2337,7 @@ function Stock() {
     return prefix+num+rand;
   };
   const [transfer, setTransfer] = useState({productId:'',qty:1});
-  const [adjust, setAdjust] = useState({productId:'',type:'entrada',qty:0,note:''});
+  const [adjust, setAdjust] = useState({productId:'',type:'entrada',qty:0,note:'',lojaDestino:''});
   const [stockTab, setStockTab] = useState('todos');
   const [adjustSearch, setAdjustSearch] = useState('');
   const [showAdjustScanner, setShowAdjustScanner] = useState(false);
@@ -2270,13 +2366,14 @@ function Stock() {
 
   const saveProduct = () => {
     if(!form.description) return addToast('Preencha a descrição','error');
-    const codigo = form.code || gerarCodigo();
+    const codigo = (form.code||'').trim() || gerarCodigo();
     if(modal==='add'){
       if(products.find(p=>p.code===codigo&&p.store===form.store)) return addToast('Código já existe nesta loja','error');
-      setProducts(ps=>[...ps,{...form,code:codigo,id:'p'+Date.now(),qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice)}]);
-      addToast('Produto cadastrado!','success');
+      const newProd = {...form, code:codigo, id:'p'+Date.now(), qty:Number(form.qty), costPrice:Number(form.costPrice), salePrice:Number(form.salePrice)};
+      setProducts(ps=>[...ps, newProd]);
+      addToast('Produto cadastrado! Código: '+codigo,'success');
     } else {
-      setProducts(ps=>ps.map(p=>p.id===editProduct.id?{...form,code:codigo,id:p.id,qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice)}:p));
+      setProducts(ps=>ps.map(p=>p.id===editProduct.id ? {...form,code:codigo,id:p.id,qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice)} : p));
       addToast('Produto atualizado!','success');
     }
     setModal(null);
@@ -2307,11 +2404,16 @@ function Stock() {
   };
 
   const doAdjust = () => {
-    const prod=products.find(p=>p.id===adjust.productId);
-    if(!prod) return addToast('Selecione um produto','error');
-    setProducts(ps=>ps.map(p=>p.id===prod.id?{...p,qty:adjust.type==='entrada'?p.qty+Number(adjust.qty):Math.max(0,p.qty-Number(adjust.qty))}:p));
-    addMovement(prod.id,adjust.type,Number(adjust.qty),adjust.note||'Ajuste manual');
-    addToast('Estoque ajustado!','success'); setModal(null); setAdjustSearch('');
+    if(!adjust.productId) return addToast('Selecione um produto','error');
+    // Se especificou loja diferente, achar o produto naquela loja
+    const prodBase = products.find(p=>p.id===adjust.productId);
+    if(!prodBase) return addToast('Produto não encontrado','error');
+    const lojaAlvo = adjust.lojaDestino || prodBase.store;
+    // Tentar achar produto na loja destino (mesmo código)
+    const prodNaLoja = products.find(p=>p.code===prodBase.code&&p.store===lojaAlvo) || prodBase;
+    setProducts(ps=>ps.map(p=>p.id===prodNaLoja.id?{...p,qty:adjust.type==='entrada'?p.qty+Number(adjust.qty):Math.max(0,p.qty-Number(adjust.qty))}:p));
+    addMovement(prodNaLoja.id,adjust.type,Number(adjust.qty),(adjust.note||'Ajuste manual')+' ['+lojaAlvo+']');
+    addToast('Estoque ajustado em '+lojaAlvo+'!','success'); setModal(null); setAdjustSearch('');
   };
 
   const handleDeleteProduct = (p) => {
@@ -2346,7 +2448,7 @@ function Stock() {
           </>}
         </div>
         <div className="card"><div className="table-wrap"><table>
-          <thead><tr><th></th><th>Código</th><th>Produto</th><th>Loja / Distribuição</th><th>Total</th><th>Compra</th><th>Venda</th><th>Margem</th>{isAdmin&&<th></th>}</tr></thead>
+          <thead><tr><th></th><th>Código</th><th>Produto</th><th>Tam.</th><th>Loja / Distribuição</th><th>Total</th><th>Compra</th><th>Venda</th><th>Margem</th>{isAdmin&&<th></th>}</tr></thead>
           <tbody>{filtered.map(p=>{
             const margin=p.salePrice>0?((p.salePrice-p.costPrice)/p.salePrice*100):0;
             const isConsolidated = filterStore==='Todos' && p.lojas && p.lojas.length>1;
@@ -2355,6 +2457,7 @@ function Stock() {
                 <td>{p.photo?<img src={p.photo} style={{width:36,height:36,borderRadius:6,objectFit:'cover',border:'1px solid var(--bg5)'}} alt=""/>:<div style={{width:36,height:36,borderRadius:6,background:'var(--bg4)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,opacity:.4}}>▦</div>}</td>
                 <td style={{fontFamily:'DM Mono,monospace',fontSize:11,color:'var(--g3)'}}>{p.code}</td>
                 <td style={{fontWeight:500,color:'var(--text)'}}>{p.description}</td>
+                <td>{p.tamanho?<span className="badge badge-gray">{p.tamanho}</span>:<span style={{color:'var(--g2)',fontSize:11}}>—</span>}</td>
                 <td>
                   {isConsolidated
                     ? <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
@@ -2497,6 +2600,14 @@ function Stock() {
                 <select value={adjust.type} onChange={e=>setAdjust(a=>({...a,type:e.target.value}))}><option value="entrada">Entrada</option><option value="saída">Saída</option></select>
               </div>
               <div className="form-field"><label>Quantidade</label><input type="number" min="1" value={adjust.qty} onChange={e=>setAdjust(a=>({...a,qty:e.target.value}))}/></div>
+            </div>
+            <div className="form-row">
+              <div className="form-field"><label>Loja (onde entra o produto)</label>
+                <select value={adjust.lojaDestino} onChange={e=>setAdjust(a=>({...a,lojaDestino:e.target.value}))} style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13,width:'100%'}}>
+                  <option value="">Mesma loja do produto</option>
+                  {lojas.map(l=><option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
             </div>
             <div className="form-row"><div className="form-field"><label>Observação</label><input value={adjust.note} onChange={e=>setAdjust(a=>({...a,note:e.target.value}))} placeholder="Motivo, fornecedor, NF..."/></div></div>
           </div>
@@ -3157,7 +3268,7 @@ function CashflowGeral() {
   const rows = meses.map(m=>{
     const vendasM=sales.filter(s=>isSameMonth(s.date,m,selYear)&&(filterStore==='Todos'||s.store===filterStore));
     const despM=expenses.filter(e=>isSameMonth(e.date,m,selYear)&&(filterStore==='Todos'||e.store===filterStore));
-    const entradas=vendasM.reduce((a,s)=>a+s.total,0);
+    const entradas=vendasM.reduce((a,s)=>a+s.total,0); // total já é subtotal - desconto
     const estornos=totalEstornos(m,selYear);
     const saidas=despM.reduce((a,e)=>a+e.amount,0);
     return {m,entradas,estornos,saidas,lucro:entradas-estornos-saidas,vendas:vendasM.length};
@@ -3302,8 +3413,80 @@ function Employees() {
   );
 }
 
+function MetasLoja({ sales, lojas, goals, setGoals, currentUser, addToast }) {
+  const isAdmin = currentUser.role==='admin';
+  const {m,y} = thisMonth();
+  const months=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState({loja:'',month:m,year:y,goal:''});
+
+  const save = () => {
+    if(!form.loja||!form.goal) return addToast('Preencha todos os campos','error');
+    setGoals(gs=>{
+      const key='goal_loja_'+form.loja+'_'+form.month+'_'+form.year;
+      const entry={...form,id:key,tipo:'loja',goal:Number(form.goal),month:Number(form.month),year:Number(form.year)};
+      const ex=gs.findIndex(g=>g.id===key);
+      if(ex>=0) return gs.map((g,i)=>i===ex?entry:g);
+      return [...gs,entry];
+    });
+    addToast('Meta da loja salva!','success'); setModal(false);
+  };
+
+  const lojaGoals = goals.filter(g=>g.tipo==='loja');
+  return (
+    <div>
+      {isAdmin&&<div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}>
+        <button className="btn btn-white" onClick={()=>{setForm({loja:lojas[0]||'',month:m,year:y,goal:''});setModal(true)}}>+ Meta por Loja</button>
+      </div>}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:14,marginBottom:20}}>
+        {lojas.map(loja=>{
+          const vendasLoja=sales.filter(s=>s.store===loja&&isSameMonth(s.date,m,y)).reduce((a,s)=>a+s.total,0);
+          const metaLoja=lojaGoals.find(g=>g.loja===loja&&g.month===m&&g.year===y);
+          const pct=metaLoja?Math.min(vendasLoja/metaLoja.goal*100,100):0;
+          return (
+            <div key={loja} className="card">
+              <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,color:'var(--text)',marginBottom:8}}>{loja}</div>
+              <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:28,color:'var(--text)'}}>{fmtMoney(vendasLoja)}</div>
+              <div style={{fontSize:11,color:'var(--g3)',marginBottom:8}}>Meta: {metaLoja?fmtMoney(metaLoja.goal):'Não definida'}</div>
+              {metaLoja&&<><div className="progress-bar"><div className={`progress-fill ${pct>=100?'green':pct>=70?'yellow':'red'}`} style={{width:pct+'%'}}/></div>
+              <div style={{fontSize:10,color:'var(--g3)',marginTop:3,textAlign:'right'}}>{pct.toFixed(0)}%</div></>}
+            </div>
+          );
+        })}
+      </div>
+      <div className="card"><div className="table-wrap"><table>
+        <thead><tr><th>Loja</th><th>Mês/Ano</th><th>Meta</th><th>Realizado</th><th>%</th>{isAdmin&&<th></th>}</tr></thead>
+        <tbody>{lojaGoals.map((g,i)=>{
+          const vend=sales.filter(s=>s.store===g.loja&&isSameMonth(s.date,Number(g.month),Number(g.year))).reduce((a,s)=>a+s.total,0);
+          const p=Math.min(vend/g.goal*100,100);
+          return (<tr key={i}>
+            <td><span className="badge badge-blue">{g.loja}</span></td>
+            <td style={{fontSize:12,color:'var(--text)'}}>{months[Number(g.month)]} / {g.year}</td>
+            <td style={{fontFamily:'DM Mono,monospace',fontWeight:700}}>{fmtMoney(g.goal)}</td>
+            <td style={{fontFamily:'DM Mono,monospace',color:vend>=g.goal?'var(--success)':'var(--danger)'}}>{fmtMoney(vend)}</td>
+            <td><span className={`badge ${p>=100?'badge-green':p>=70?'badge-yellow':'badge-red'}`}>{p.toFixed(0)}%</span></td>
+            {isAdmin&&<td><button className="btn-icon" style={{color:'var(--danger)'}} onClick={()=>setGoals(gs=>gs.filter(x=>x.id!==g.id))}>🗑</button></td>}
+          </tr>);
+        })}</tbody>
+      </table></div></div>
+      {modal&&<div className="modal-overlay"><div className="modal">
+        <div className="modal-header"><h3>META POR LOJA</h3><div className="close-btn" onClick={()=>setModal(false)}>✕</div></div>
+        <div className="modal-body">
+          <div className="form-row"><div className="form-field"><label>Loja</label><select value={form.loja} onChange={e=>setForm(f=>({...f,loja:e.target.value}))}>{lojas.map(l=><option key={l}>{l}</option>)}</select></div></div>
+          <div className="form-row cols-2">
+            <div className="form-field"><label>Mês</label><select value={form.month} onChange={e=>setForm(f=>({...f,month:e.target.value}))}>{['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'].map((mn,i)=><option key={i} value={i}>{mn}</option>)}</select></div>
+            <div className="form-field"><label>Ano</label><input type="number" value={form.year} onChange={e=>setForm(f=>({...f,year:e.target.value}))}/></div>
+          </div>
+          <div className="form-row"><div className="form-field"><label>Meta (R$)</label><input type="number" step="100" value={form.goal} onChange={e=>setForm(f=>({...f,goal:e.target.value}))} placeholder="10000"/></div></div>
+        </div>
+        <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setModal(false)}>Cancelar</button><button className="btn btn-white" onClick={save}>Salvar</button></div>
+      </div></div>}
+    </div>
+  );
+}
+
 function Goals() {
-  const { sellers, goals, setGoals, addToast, currentUser } = useContext(AppContext);
+  const { sellers, goals, setGoals, addToast, currentUser, sales, lojas } = useContext(AppContext);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({sellerId:'',month:new Date().getMonth(),year:new Date().getFullYear(),goal:''});
   const [confirm, setConfirm] = useState(null);
@@ -3332,9 +3515,55 @@ function Goals() {
     });
   };
 
+  const [goalsTab, setGoalsTab] = useState('vendedor');
+  const {m:curM, y:curY} = thisMonth();
+  const months2=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  // Histórico de atingimento por vendedor
+  const historicoVendedor = sellers.filter(s=>s.role==='seller').map(s=>{
+    const minY=Math.min(...(goals.filter(g=>g.sellerId===s.id).map(g=>g.year)||[curY]));
+    const anos2=[...new Set(goals.filter(g=>g.sellerId===s.id).map(g=>g.year))].sort();
+    return {seller:s, anos:anos2.map(y=>({y,meses:Array.from({length:12},(_,m)=>{
+      const g=goals.find(gg=>gg.sellerId===s.id&&gg.month===m&&gg.year===y);
+      const vend=sales.filter(s2=>s2.sellerId===s.id&&isSameMonth(s2.date,m,y)).reduce((a,s2)=>a+s2.total,0);
+      return {m,meta:g?.goal||0,vendido:vend,atingiu:g&&vend>=g.goal};
+    })})};
+  }).filter(s=>s.anos.length>0);
+
   return (
     <div>
       {confirm && <ConfirmModal {...confirm} onCancel={()=>setConfirm(null)}/>}
+      <div className="tabs" style={{marginBottom:16}}>
+        <div className={`tab ${goalsTab==='vendedor'?'active':''}`} onClick={()=>setGoalsTab('vendedor')}>Por Vendedor</div>
+        <div className={`tab ${goalsTab==='loja'?'active':''}`} onClick={()=>setGoalsTab('loja')}>Por Loja</div>
+        <div className={`tab ${goalsTab==='historico'?'active':''}`} onClick={()=>setGoalsTab('historico')}>Histórico</div>
+      </div>
+      {goalsTab==='loja' && <MetasLoja sales={sales} lojas={lojas} goals={goals} setGoals={setGoals} currentUser={currentUser} addToast={addToast}/>}
+      {goalsTab==='historico' && (
+        <div>
+          {historicoVendedor.length===0 ? <div className="empty-state"><div className="icon">📊</div><p>Nenhuma meta definida ainda</p></div> :
+          historicoVendedor.map(({seller,anos})=>(
+            <div key={seller.id} className="card mb-16">
+              <div style={{fontWeight:700,fontSize:14,color:'var(--text)',marginBottom:12}}>{seller.name}</div>
+              {anos.map(({y,meses})=>(
+                <div key={y} style={{marginBottom:10}}>
+                  <div style={{fontSize:11,color:'var(--g3)',marginBottom:6}}>{y}</div>
+                  <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+                    {meses.map(({m,meta,vendido,atingiu})=>(
+                      <div key={m} style={{textAlign:'center',minWidth:44,padding:'6px 4px',borderRadius:'var(--r)',background:meta===0?'var(--bg3)':atingiu?'rgba(68,255,136,.1)':'rgba(255,68,68,.08)',border:`1px solid ${meta===0?'var(--bg5)':atingiu?'rgba(68,255,136,.3)':'rgba(255,68,68,.3)'}`}}>
+                        <div style={{fontSize:9,color:'var(--g3)'}}>{months2[m]}</div>
+                        <div style={{fontSize:11,fontWeight:700,color:meta===0?'var(--g2)':atingiu?'var(--success)':'var(--danger)'}}>{meta===0?'—':atingiu?'✓':'✗'}</div>
+                        {meta>0&&<div style={{fontSize:8,color:'var(--g3)'}}>{Math.round(vendido/meta*100)}%</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+      {goalsTab==='vendedor' && <>
       <div className="flex items-center justify-between mb-24">
         <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:20,letterSpacing:3,color:'var(--text)'}}>METAS POR VENDEDOR</span>
         <button className="btn btn-white" onClick={()=>{setForm({sellerId:'',month:new Date().getMonth(),year:new Date().getFullYear(),goal:''});setModal(true)}}>+ Definir Meta</button>
@@ -3352,6 +3581,7 @@ function Goals() {
           </tr>);
         })}</tbody>
       </table></div></div>
+      </>}
       {modal&&(
         <div className="modal-overlay"><div className="modal">
           <div className="modal-header"><h3>DEFINIR META</h3><div className="close-btn" onClick={()=>setModal(false)}>✕</div></div>
