@@ -800,7 +800,7 @@ function Login() {
         <div style={{marginTop:12,display:'flex',justifyContent:'center'}}>
           <button style={{background:'none',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 14px',color:'var(--g3)',fontSize:11,cursor:'pointer'}} onClick={()=>setDevice(null)}>⇄ Trocar dispositivo</button>
         </div>
-        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v6.7</div>
+        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v6.8</div>
       </div>
     </div>
   );
@@ -1559,6 +1559,7 @@ function NewSale() {
   const [reservarQty, setReservarQty] = useState(1);
   const [lastSale, setLastSale] = useState(null);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [showPayModal, setShowPayModal] = useState(false);
   const searchRef = useRef();
 
   // produtos da loja atual + produtos de outra loja (para mostrar opção de reservar)
@@ -1639,7 +1640,9 @@ function NewSale() {
   const total = Math.max(0, subtotal - discountValue);
 
   const hasDinheiro = payMethods.some(p=>p.method==='Dinheiro');
-  const troco = payMethods.filter(p=>p.method==='Dinheiro').reduce((a,p)=>a+Math.max(0,(Number(p.received)||0)-(Number(p.value)||0)),0);
+  const troco = payMethods.length===1 && payMethods[0].method==='Dinheiro'
+    ? Math.max(0,(Number(payMethods[0].received)||0)-total)
+    : payMethods.filter(p=>p.method==='Dinheiro').reduce((a,p)=>a+Math.max(0,(Number(p.received)||0)-(Number(p.value)||0)),0);
 
   const addPayMethod = () => setPayMethods(m=>[...m,{method:'Pix',value:'',dueDate:''}]);
   const removePayMethod = (i) => setPayMethods(m=>m.filter((_,idx)=>idx!==i));
@@ -1922,37 +1925,115 @@ function NewSale() {
         )}
       </div>
 
-      {/* PAGAMENTO */}
-      <div className="card mb-16">
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-          <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,color:'var(--text)'}}>PAGAMENTO</div>
-          <button className="btn btn-sm btn-outline" onClick={addPayMethod}>+ Método</button>
-        </div>
-        {payMethods.map((pm,i)=>{
-          const isDinheiro = pm.method==='Dinheiro';
-          const valorPago = Number(pm.received||0);
-          const trocoItem = isDinheiro && valorPago>0 ? Math.max(0, valorPago - (Number(pm.value)||0)) : 0;
-          return (
-          <div key={i} style={{marginBottom:8,padding:'10px 12px',background:'var(--bg3)',borderRadius:'var(--r)',border:'1px solid var(--bg5)'}}>
-            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:isDinheiro?8:0}}>
-              <select value={pm.method} onChange={e=>updatePayMethod(i,'method',e.target.value)} style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:13,flex:'0 0 120px'}}>
-                <option>Dinheiro</option><option>Pix</option><option>Cartão</option><option>A prazo</option>
-              </select>
-              <input type="number" step="0.01" min="0" value={pm.value} onChange={e=>updatePayMethod(i,'value',e.target.value)} placeholder="Valor (R$)" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:13,flex:1,minWidth:0}}/>
-              {pm.method==='A prazo' && <input type="date" value={pm.dueDate} onChange={e=>updatePayMethod(i,'dueDate',e.target.value)} style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 10px',color:'var(--text)',fontSize:12,flex:'0 0 140px'}}/>}
-              {payMethods.length>1 && <button className="btn-icon" onClick={()=>removePayMethod(i)} style={{color:'var(--danger)',flexShrink:0}}>✕</button>}
+      {/* MODAL DIVIDIR PAGAMENTO */}
+      {showPayModal && (
+        <div className="modal-overlay" style={{zIndex:1500}}>
+          <div className="modal" style={{maxWidth:420}}>
+            <div className="modal-header"><h3>DIVIDIR PAGAMENTO</h3><div className="close-btn" onClick={()=>setShowPayModal(false)}>✕</div></div>
+            <div className="modal-body">
+              <div style={{padding:'10px 12px',background:'rgba(255,255,255,.05)',borderRadius:'var(--r)',marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:12,color:'var(--g3)'}}>Total da venda</span>
+                <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:22,color:'var(--text)'}}>{fmtMoney(total)}</span>
+              </div>
+              {payMethods.map((pm,i)=>{
+                const isDinheiro=pm.method==='Dinheiro';
+                const valorPago=Number(pm.received||0);
+                const trocoItem=isDinheiro&&valorPago>0?Math.max(0,valorPago-(Number(pm.value)||0)):0;
+                return (
+                  <div key={i} style={{marginBottom:10,padding:'12px',background:'var(--bg3)',borderRadius:'var(--r)',border:'1px solid var(--bg5)'}}>
+                    <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
+                      <select value={pm.method} onChange={e=>updatePayMethod(i,'method',e.target.value)} style={{flex:1,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13}}>
+                        <option>Dinheiro</option><option>Pix</option><option>Cartão</option><option>A prazo</option>
+                      </select>
+                      {payMethods.length>1&&<button className="btn-icon" onClick={()=>removePayMethod(i)} style={{color:'var(--danger)'}}>✕</button>}
+                    </div>
+                    <input type="number" step="0.01" min="0" value={pm.value} onChange={e=>updatePayMethod(i,'value',e.target.value)}
+                      placeholder="Valor nesta forma" style={{width:'100%',background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13,marginBottom:isDinheiro?8:0,boxSizing:'border-box'}}/>
+                    {pm.method==='A prazo'&&<input type="date" value={pm.dueDate||''} onChange={e=>updatePayMethod(i,'dueDate',e.target.value)} style={{width:'100%',background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13,marginBottom:isDinheiro?8:0,boxSizing:'border-box'}}/>}
+                    {isDinheiro&&<div style={{display:'flex',gap:8,alignItems:'center'}}>
+                      <input type="number" step="0.01" min="0" value={pm.received||''} onChange={e=>updatePayMethod(i,'received',e.target.value)}
+                        placeholder="Valor recebido" style={{flex:1,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13}}/>
+                      {valorPago>0&&<div style={{padding:'6px 10px',borderRadius:'var(--r)',background:'rgba(68,255,136,.1)',border:'1px solid rgba(68,255,136,.3)',whiteSpace:'nowrap'}}>
+                        <span style={{fontSize:11,color:'var(--g3)'}}>Troco </span>
+                        <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--success)'}}>{fmtMoney(trocoItem)}</span>
+                      </div>}
+                    </div>}
+                  </div>
+                );
+              })}
+              {(()=>{const tp=payMethods.reduce((a,p)=>a+(Number(p.value)||0),0);const d=total-tp;return(
+                <div style={{padding:'8px 12px',borderRadius:'var(--r)',background:Math.abs(d)<0.01?'rgba(68,255,136,.08)':'rgba(255,204,0,.08)',border:`1px solid ${Math.abs(d)<0.01?'rgba(68,255,136,.3)':'rgba(255,204,0,.3)'}`,fontSize:12,display:'flex',justifyContent:'space-between',marginBottom:10}}>
+                  <span style={{color:'var(--g3)'}}>{Math.abs(d)<0.01?'✓ Valores conferem':'Restante a distribuir'}</span>
+                  <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:Math.abs(d)<0.01?'var(--success)':'var(--warning)'}}>{Math.abs(d)<0.01?'Tudo certo':fmtMoney(Math.abs(d))}</span>
+                </div>
+              );})()}
+              <button className="btn btn-sm btn-outline" style={{width:'100%'}} onClick={addPayMethod}>+ Adicionar forma</button>
             </div>
-            {isDinheiro&&<div style={{display:'flex',alignItems:'center',gap:8}}>
-              <span style={{fontSize:11,color:'var(--g3)',whiteSpace:'nowrap'}}>Recebido:</span>
-              <input type="number" step="0.01" min="0" value={pm.received||''} onChange={e=>updatePayMethod(i,'received',e.target.value)} placeholder="Valor recebido" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'5px 8px',color:'var(--text)',fontSize:13,flex:1}}/>
-              {valorPago>0&&<div style={{display:'flex',gap:6,alignItems:'center',background:trocoItem>=0?'rgba(68,255,136,.08)':'rgba(255,68,68,.08)',padding:'4px 10px',borderRadius:'var(--r)',border:`1px solid ${trocoItem>=0?'rgba(68,255,136,.3)':'rgba(255,68,68,.3)'}`}}>
-                <span style={{fontSize:11,color:'var(--g3)'}}>Troco:</span>
-                <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:14,color:trocoItem>=0?'var(--success)':'var(--danger)'}}>{fmtMoney(trocoItem)}</span>
-              </div>}
-            </div>}
+            <div className="modal-footer"><button className="btn btn-white" onClick={()=>setShowPayModal(false)}>Confirmar</button></div>
           </div>
-          );
-        })}
+        </div>
+      )}
+
+      {/* PAGAMENTO SIMPLIFICADO */}
+      <div className="card mb-16">
+        {items.length>0&&(
+          <div style={{marginBottom:14}}>
+            {discountValue>0&&<>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                <span style={{fontSize:12,color:'var(--g3)'}}>Subtotal</span>
+                <span style={{fontFamily:'DM Mono,monospace',fontSize:13,color:'var(--text)'}}>{fmtMoney(subtotal)}</span>
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+                <span style={{fontSize:12,color:'var(--warning)'}}>Desconto</span>
+                <span style={{fontFamily:'DM Mono,monospace',fontSize:13,color:'var(--warning)'}}>-{fmtMoney(discountValue)}</span>
+              </div>
+            </>}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 16px',background:'var(--bg3)',borderRadius:'var(--r)',border:'1px solid var(--bg5)'}}>
+              <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:18,letterSpacing:1,color:'var(--text)'}}>TOTAL</span>
+              <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:32,color:'var(--text)'}}>{fmtMoney(total)}</span>
+            </div>
+          </div>
+        )}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:10}}>FORMA DE PAGAMENTO</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10}}>
+            {['Dinheiro','Pix','Cartão','A prazo'].map(m=>{
+              const sel=payMethods.length===1&&payMethods[0].method===m;
+              return <button key={m} type="button" onClick={()=>{setPayMethods([{method:m,value:'',dueDate:'',received:''}]);}}
+                style={{padding:'10px 16px',borderRadius:'var(--r)',border:'1px solid',fontSize:13,fontWeight:600,cursor:'pointer',transition:'all .15s',
+                  borderColor:sel?'var(--text)':'var(--bg5)',background:sel?'var(--text)':'var(--bg3)',color:sel?'var(--bg)':'var(--text)'}}>
+                {m==='Dinheiro'?'💵':m==='Pix'?'📲':m==='Cartão'?'💳':'📋'} {m}
+              </button>;
+            })}
+          </div>
+          {payMethods[0]?.method==='A prazo'&&(
+            <input type="date" value={payMethods[0].dueDate||''} onChange={e=>updatePayMethod(0,'dueDate',e.target.value)}
+              style={{width:'100%',background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'9px 10px',color:'var(--text)',fontSize:13,marginBottom:8,boxSizing:'border-box'}}/>
+          )}
+          {payMethods[0]?.method==='Dinheiro'&&(
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <input type="number" step="0.01" min="0" value={payMethods[0].received||''} onChange={e=>updatePayMethod(0,'received',e.target.value)}
+                placeholder="Valor recebido (troco)"
+                style={{flex:1,background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'9px 10px',color:'var(--text)',fontSize:13}}/>
+              {Number(payMethods[0].received)>0&&(
+                <div style={{padding:'8px 12px',borderRadius:'var(--r)',background:'rgba(68,255,136,.1)',border:'1px solid rgba(68,255,136,.3)',whiteSpace:'nowrap'}}>
+                  <div style={{fontSize:10,color:'var(--g3)'}}>TROCO</div>
+                  <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:16,color:'var(--success)'}}>{fmtMoney(Math.max(0,Number(payMethods[0].received)-total))}</div>
+                </div>
+              )}
+            </div>
+          )}
+          {payMethods.length>1&&(
+            <div style={{marginTop:8,padding:'8px 12px',background:'rgba(68,170,255,.06)',border:'1px solid rgba(68,170,255,.2)',borderRadius:'var(--r)',fontSize:12,color:'var(--info)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span>✓ {payMethods.map(p=>p.method+(p.value?(' '+fmtMoney(p.value)):'')).join(' + ')}</span>
+              <button className="btn btn-sm btn-outline" style={{fontSize:11}} onClick={()=>setShowPayModal(true)}>Editar</button>
+            </div>
+          )}
+          <button type="button" style={{marginTop:8,width:'100%',padding:'8px',borderRadius:'var(--r)',border:'1px dashed var(--bg5)',background:'transparent',color:'var(--g3)',fontSize:12,cursor:'pointer'}}
+            onClick={()=>{if(payMethods.length===1){const cur=payMethods[0];setPayMethods([{...cur,value:total/2,received:'',dueDate:cur.dueDate||''},{method:'Pix',value:total/2,received:'',dueDate:''}]);}setShowPayModal(true);}}>
+            ÷ Dividir em múltiplas formas
+          </button>
+        </div>
         {items.length>0 && (
           <div style={{background:'var(--bg3)',borderRadius:'var(--r)',padding:'14px 16px',marginTop:12,border:'1px solid var(--bg5)'}}>
             <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
