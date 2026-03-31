@@ -53,7 +53,7 @@ a{text-decoration:none;color:inherit}
 .device-btn .sub{font-size:11px;color:#555}
 .firebase-banner{background:#1a0a00;border:1px solid #ff6600;border-radius:var(--r);padding:12px 16px;font-size:12px;color:#ff9933;margin-bottom:16px;display:flex;align-items:center;gap:10px}
 .firebase-banner code{background:#2a1500;padding:2px 6px;border-radius:3px;font-family:'DM Mono',monospace;font-size:11px}
-.app-layout{display:flex;flex:1;min-height:0;overflow:hidden}
+.app-layout{display:flex;flex:1;min-height:0;overflow:clip}
 .sidebar{width:220px;min-width:220px;background:#0d0d0d;border-right:1px solid #1a1a1a;display:flex;flex-direction:column;overflow:hidden;transition:width .2s ease;flex-shrink:0}
 .light .sidebar{background:#1a1a1a;border-right-color:#2a2a2a}
 .sidebar.collapsed{width:60px;min-width:60px}
@@ -93,7 +93,7 @@ a{text-decoration:none;color:inherit}
 .top-bar h2{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:var(--text)}
 .top-bar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
 .store-badge{background:var(--bg4);padding:4px 10px;border-radius:20px;font-size:11px;letter-spacing:1px;color:var(--g3)}
-.main-content{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0}
+.main-content{flex:1;display:flex;flex-direction:column;overflow:clip;min-width:0;min-height:0}
 .page-area{flex:1;overflow-y:scroll;padding:20px;padding-bottom:80px;-webkit-overflow-scrolling:touch;touch-action:pan-y}
 .os-ios .page-area{-webkit-overflow-scrolling:touch;overflow-y:scroll}
 .os-android .page-area{overflow-y:scroll;touch-action:pan-y;overscroll-behavior-y:auto}
@@ -771,7 +771,7 @@ function Login() {
         <div style={{marginTop:12,display:'flex',justifyContent:'center'}}>
           <button style={{background:'none',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 14px',color:'var(--g3)',fontSize:11,cursor:'pointer'}} onClick={()=>setDevice(null)}>⇄ Trocar dispositivo</button>
         </div>
-        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v6.0</div>
+        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v6.1</div>
       </div>
     </div>
   );
