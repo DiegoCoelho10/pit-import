@@ -436,6 +436,19 @@ function AppProvider({ children }) {
   const [clients, setClientsRaw] = useState([]);
   const [reservas, setReservasRaw] = useState([]);
   const [lojas, setLojas] = useState(['Cosmos','Nova Cidade']);
+  const [tamanhos, setTamanhosRaw] = useState([]);
+  const { saveDoc: saveTamanho, deleteDoc: deleteTamanhoDoc } = useFirestore('tamanhos', setTamanhosRaw);
+  const setTamanhos = useCallback((updOrFn) => {
+    setTamanhosRaw(prev => {
+      const next = typeof updOrFn === 'function' ? updOrFn(prev) : updOrFn;
+      if (FIREBASE_CONFIGURED && db) next.forEach(t => saveTamanho(t.id, t));
+      return next;
+    });
+  }, [saveTamanho]);
+  const deleteTamanho = useCallback((id) => {
+    setTamanhosRaw(prev => prev.filter(t => t.id !== id));
+    if (FIREBASE_CONFIGURED && db) deleteTamanhoDoc(id);
+  }, [deleteTamanhoDoc]);
   const [toasts, setToasts] = useState([]);
   const [theme, setTheme] = useState('dark');
   const [device, setDeviceRaw] = useState(()=>{
@@ -505,7 +518,7 @@ function AppProvider({ children }) {
   const setGoals = useCallback((updOrFn) => {
     setGoalsRaw(prev => {
       const next = typeof updOrFn === 'function' ? updOrFn(prev) : updOrFn;
-      if (FIREBASE_CONFIGURED && db) next.forEach(g => saveGoal(g.sellerId+'_'+g.month+'_'+g.year, g));
+      if (FIREBASE_CONFIGURED && db) next.forEach(g => saveGoal(g.id||(g.sellerId+'_'+g.month+'_'+g.year), g));
       return next;
     });
   }, [saveGoal]);
@@ -568,7 +581,7 @@ function AppProvider({ children }) {
       goals, setGoals, history, setHistory, returns, setReturns,
       clients, setClients, deleteClient,
       reservas, setReservas, deleteReserva,
-      lojas, setLojas,
+      lojas, setLojas, tamanhos, setTamanhos, deleteTamanho,
       toasts, addToast, addMovement, theme, toggleTheme, device, setDevice, firebaseStatus,
     }}>
       <div className={`${theme==='light'?'light':''} ${device?'is-'+device:''}`} style={{height:'100%'}}>
@@ -771,7 +784,7 @@ function Login() {
         <div style={{marginTop:12,display:'flex',justifyContent:'center'}}>
           <button style={{background:'none',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 14px',color:'var(--g3)',fontSize:11,cursor:'pointer'}} onClick={()=>setDevice(null)}>⇄ Trocar dispositivo</button>
         </div>
-        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v6.4</div>
+        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v6.5</div>
       </div>
     </div>
   );
@@ -971,6 +984,7 @@ const ADMIN_MENU = [
   {id:'employees',label:'Funcionários',icon:'◑',section:'Config.'},
   {id:'goals',label:'Metas',icon:'◎',section:'Config.'},
   {id:'lojas-config',label:'Gerenciar Lojas',icon:'🏪',section:'Config.'},
+  {id:'tamanhos-config',label:'Tamanhos',icon:'📐',section:'Config.'},
 ];
 const SELLER_MENU = [
   {id:'seller-home',label:'Meu Painel',icon:'◈',section:'Início'},
@@ -1046,6 +1060,7 @@ function MainApp() {
     clients:<Clients/>,
     reservas:<Reservas/>,
     'lojas-config':<LojasConfig/>,
+    'tamanhos-config':<TamanhosConfig/>,
   };
   const cur = menu.find(m=>m.id===page) || {label:page};
   const navigateTo = (id) => { setPage(id); setShowMore(false); };
@@ -1522,6 +1537,7 @@ function NewSale() {
   const [autoIdx, setAutoIdx] = useState(-1);
   const [showScanner, setShowScanner] = useState(false);
   const [reservarModal, setReservarModal] = useState(null); // produto a reservar
+  const [showClientAuto, setShowClientAuto] = useState(false);
   const [reservarCliente, setReservarCliente] = useState('');
   const [reservarEntrega, setReservarEntrega] = useState('retirar');
   const searchRef = useRef();
@@ -1614,6 +1630,7 @@ function NewSale() {
       sellerId:selectedSeller, sellerName:seller.name,
       store, channel, items,
       subtotal, discountValue, discountType, discountPercent:discountType==='percent'?Number(discount):0,
+      discountBy: discountValue>0 ? currentUser.name : '',
       total,
       paymentMethods: payMethods.map(p=>({...p,value:Number(p.value)||0})),
       paymentMethod: payMethods.length===1 ? payMethods[0].method : 'Múltiplos',
@@ -1675,22 +1692,44 @@ function NewSale() {
               </select>
             </div>
           </div>
-          <div className="form-row cols-2">
+          <div className="form-row">
             <div className="form-field"><label>Canal</label>
               <select value={channel} onChange={e=>setChannel(e.target.value)}><option>Física</option><option>Online</option></select>
             </div>
-            <div className="form-field"><label>Cliente (opcional)</label>
-              <select value={clientId} onChange={e=>{setClientId(e.target.value);const c=clients.find(x=>x.id===e.target.value);if(c)setClientName(c.name);}}>
-                <option value="">Sem cadastro</option>
-                {clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+          </div>
+          <div className="form-row">
+            <div className="form-field">
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+                <label style={{marginBottom:0}}>Cliente</label>
+                <button type="button" className="btn btn-sm btn-outline" style={{fontSize:11,padding:'2px 8px'}}
+                  onClick={()=>setPage&&typeof navigateToClients==='function'?navigateToClients():addToast('Acesse a aba Clientes para cadastrar','info')}>
+                  + Cadastrar Cliente
+                </button>
+              </div>
+              <div style={{position:'relative'}}>
+                <input value={clientName}
+                  onChange={e=>{setClientName(e.target.value);setClientId('');setShowClientAuto(true);}}
+                  onFocus={()=>setShowClientAuto(true)}
+                  onBlur={()=>setTimeout(()=>setShowClientAuto(false),200)}
+                  placeholder="Digite o nome do cliente..."/>
+                {showClientAuto && clientName.length>=1 && (
+                  <div style={{position:'absolute',top:'100%',left:0,right:0,background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',zIndex:100,maxHeight:160,overflowY:'auto',marginTop:2,boxShadow:'0 8px 24px rgba(0,0,0,.4)'}}>
+                    {clients.filter(cl=>cl.name.toLowerCase().includes(clientName.toLowerCase())).slice(0,6).map(cl=>(
+                      <div key={cl.id} onClick={()=>{setClientId(cl.id);setClientName(cl.name);setShowClientAuto(false);}}
+                        style={{padding:'8px 12px',cursor:'pointer',borderBottom:'1px solid var(--bg4)',fontSize:13,color:'var(--text)'}}>
+                        <div style={{fontWeight:600}}>{cl.name}</div>
+                        {cl.phone&&<div style={{fontSize:10,color:'var(--g3)'}}>{cl.phone}</div>}
+                      </div>
+                    ))}
+                    {clients.filter(cl=>cl.name.toLowerCase().includes(clientName.toLowerCase())).length===0&&(
+                      <div style={{padding:'10px 12px',fontSize:12,color:'var(--g3)'}}>Nenhum cliente encontrado</div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {clientId&&<div style={{fontSize:11,color:'var(--success)',marginTop:3}}>✓ Cliente vinculado</div>}
             </div>
           </div>
-          {(hasAPrazo || !clientId) && (
-            <div className="form-row">
-              <div className="form-field"><label>Nome do Cliente</label><input value={clientName} onChange={e=>setClientName(e.target.value)} placeholder="Nome para identificação"/></div>
-            </div>
-          )}
           {isAdmin && (
             <div style={{marginTop:4}}>
               <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:6}}>Desconto</div>
@@ -1935,7 +1974,7 @@ function SalesHistory() {
           <table>
             <thead><tr>
               <th style={{width:28}}></th>
-              <th>Data</th><th>Vendedor</th><th>Cliente</th><th>Loja</th><th>Pagamento</th><th>Status</th><th>Total</th>
+              <th>Data</th><th>Vendedor</th><th>Cliente</th><th>Loja</th><th>Pagamento</th><th>Desconto</th><th>Status</th><th>Total</th>
               {isAdmin&&<th></th>}
             </tr></thead>
             <tbody>
@@ -1953,6 +1992,10 @@ function SalesHistory() {
                       <td style={{fontSize:11,color:'var(--g3)'}}>{s.clientName||'—'}</td>
                       <td><span className="badge badge-gray">{s.store}</span></td>
                       <td style={{fontSize:11,color:'var(--text)',maxWidth:180}}>{payResume}</td>
+                      <td>{s.discountValue>0
+                        ? <div><span className="badge badge-yellow">-{fmtMoney(s.discountValue)}</span><div style={{fontSize:9,color:'var(--g3)',marginTop:2}}>{s.discountBy||'Admin'}</div></div>
+                        : <span style={{color:'var(--g2)',fontSize:11}}>—</span>}
+                      </td>
                       <td><span className={`badge ${s.paid?'badge-green':'badge-red'}`}>{s.paid?'Pago':'Pendente'}</span></td>
                       <td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--text)'}}>{fmtMoney(s.total)}</td>
                       {isAdmin&&<td onClick={e=>e.stopPropagation()}>
@@ -2180,13 +2223,23 @@ function Receivables() {
 
 // ITEM 11: Estoque com ImgDropzone para foto do produto
 function Stock() {
-  const { products, setProducts, sales, history, addToast, addMovement, currentUser, lojas } = useContext(AppContext);
+  const { products, setProducts, sales, history, addToast, addMovement, currentUser, lojas, tamanhos, setTamanhos } = useContext(AppContext);
   const isAdmin = currentUser.role === 'admin';
   const [search, setSearch] = useState('');
   const [filterStore, setFilterStore] = useState('Todos');
   const [modal, setModal] = useState(null);
   const [editProduct, setEditProduct] = useState(null);
-  const [form, setForm] = useState({code:'',description:'',store:'Cosmos',qty:0,costPrice:0,salePrice:0,photo:null});
+  const [form, setForm] = useState({code:'',description:'',store:'Cosmos',qty:0,costPrice:0,salePrice:0,photo:null,temVariacao:false,tamanho:''});
+  const [novoTamanhoInline, setNovoTamanhoInline] = useState('');
+  const [novoTamanhoObs, setNovoTamanhoObs] = useState('');
+  const [showNovoTamanho, setShowNovoTamanho] = useState(false);
+
+  const gerarCodigo = () => {
+    const prefix = 'PIT';
+    const num = String(products.length + 1 + Math.floor(Math.random()*9)).padStart(4,'0');
+    const rand = Math.random().toString(36).substring(2,5).toUpperCase();
+    return prefix+num+rand;
+  };
   const [transfer, setTransfer] = useState({productId:'',qty:1});
   const [adjust, setAdjust] = useState({productId:'',type:'entrada',qty:0,note:''});
   const [stockTab, setStockTab] = useState('todos');
@@ -2216,16 +2269,27 @@ function Stock() {
   };
 
   const saveProduct = () => {
-    if(!form.code||!form.description) return addToast('Preencha código e descrição','error');
+    if(!form.description) return addToast('Preencha a descrição','error');
+    const codigo = form.code || gerarCodigo();
     if(modal==='add'){
-      if(products.find(p=>p.code===form.code&&p.store===form.store)) return addToast('Código já existe nesta loja','error');
-      setProducts(ps=>[...ps,{...form,id:'p'+Date.now(),qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice)}]);
+      if(products.find(p=>p.code===codigo&&p.store===form.store)) return addToast('Código já existe nesta loja','error');
+      setProducts(ps=>[...ps,{...form,code:codigo,id:'p'+Date.now(),qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice)}]);
       addToast('Produto cadastrado!','success');
     } else {
-      setProducts(ps=>ps.map(p=>p.id===editProduct.id?{...form,id:p.id,qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice)}:p));
+      setProducts(ps=>ps.map(p=>p.id===editProduct.id?{...form,code:codigo,id:p.id,qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice)}:p));
       addToast('Produto atualizado!','success');
     }
     setModal(null);
+  };
+
+  const adicionarTamanhoInline = () => {
+    const n = novoTamanhoInline.trim().toUpperCase();
+    if(!n) return addToast('Informe o nome do tamanho','error');
+    if(tamanhos.find(t=>t.nome===n)) { setForm(f=>({...f,tamanho:n})); setShowNovoTamanho(false); return; }
+    setTamanhos(ts=>[...ts,{id:'tam'+Date.now(),nome:n,obs:novoTamanhoObs.trim()}]);
+    setForm(f=>({...f,tamanho:n}));
+    setNovoTamanhoInline(''); setNovoTamanhoObs(''); setShowNovoTamanho(false);
+    addToast('Tamanho "'+n+'" criado e selecionado!','success');
   };
 
   const doTransfer = () => {
@@ -2321,16 +2385,59 @@ function Stock() {
         <div className="modal-overlay"><div className="modal modal-lg">
           <div className="modal-header"><h3>{modal==='add'?'NOVO PRODUTO':'EDITAR PRODUTO'}</h3><div className="close-btn" onClick={()=>setModal(null)}>✕</div></div>
           <div className="modal-body">
-            {/* ITEM 11: ImgDropzone */}
             <div style={{marginBottom:16}}>
               <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:6}}>Foto do Produto (opcional)</div>
               <ImgDropzone value={form.photo} onChange={v=>setForm(f=>({...f,photo:v}))}/>
             </div>
             <div className="form-row cols-2">
-              <div className="form-field"><label>Código</label><input value={form.code} onChange={e=>setForm(f=>({...f,code:e.target.value}))}/></div>
+              <div className="form-field">
+                <label>Código <span style={{fontSize:9,color:'var(--g3)'}}>(deixe vazio para gerar automático)</span></label>
+                <div style={{display:'flex',gap:6}}>
+                  <input value={form.code} onChange={e=>setForm(f=>({...f,code:e.target.value}))} placeholder="Automático"/>
+                  <button type="button" className="btn btn-sm btn-outline" onClick={()=>setForm(f=>({...f,code:gerarCodigo()}))} style={{whiteSpace:'nowrap',flexShrink:0}}>🎲 Gerar</button>
+                </div>
+              </div>
               <div className="form-field"><label>Loja</label><select value={form.store} onChange={e=>setForm(f=>({...f,store:e.target.value}))}>{lojas.map(l=><option key={l}>{l}</option>)}</select></div>
             </div>
-            <div className="form-row"><div className="form-field"><label>Descrição</label><input value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}/></div></div>
+            <div className="form-row"><div className="form-field"><label>Descrição *</label><input value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Nome do produto"/></div></div>
+
+            {/* VARIAÇÃO */}
+            <div className="form-row">
+              <div className="form-field">
+                <label>Tipo de Tamanho</label>
+                <div style={{display:'flex',gap:8,marginBottom:8}}>
+                  <button type="button" onClick={()=>setForm(f=>({...f,temVariacao:false,tamanho:''}))}
+                    className={`btn btn-sm ${!form.temVariacao?'btn-white':'btn-outline'}`}>Tamanho Único</button>
+                  <button type="button" onClick={()=>setForm(f=>({...f,temVariacao:true}))}
+                    className={`btn btn-sm ${form.temVariacao?'btn-white':'btn-outline'}`}>Com Variação</button>
+                </div>
+                {form.temVariacao && (
+                  <div>
+                    <select value={form.tamanho} onChange={e=>{ if(e.target.value==='__novo__'){setShowNovoTamanho(true);}else{setForm(f=>({...f,tamanho:e.target.value}));} }}
+                      style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13,width:'100%'}}>
+                      <option value="">Selecionar tamanho...</option>
+                      {tamanhos.map(t=><option key={t.id} value={t.nome}>{t.nome}{t.obs?` (${t.obs})`:''}</option>)}
+                      <option value="__novo__">➕ Cadastrar novo tamanho...</option>
+                    </select>
+                    {form.tamanho && <div style={{marginTop:6,fontSize:11,color:'var(--success)'}}>✓ Tamanho: <strong>{form.tamanho}</strong></div>}
+                    {showNovoTamanho && (
+                      <div style={{marginTop:8,padding:12,background:'var(--bg3)',borderRadius:'var(--r)',border:'1px solid var(--bg5)'}}>
+                        <div style={{fontSize:10,letterSpacing:1,textTransform:'uppercase',color:'var(--g3)',marginBottom:8}}>Novo Tamanho</div>
+                        <div style={{display:'flex',gap:6,marginBottom:6}}>
+                          <input value={novoTamanhoInline} onChange={e=>setNovoTamanhoInline(e.target.value.toUpperCase())} placeholder="Ex: 2XG" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 8px',color:'var(--text)',fontSize:13,flex:1}}/>
+                          <input value={novoTamanhoObs} onChange={e=>setNovoTamanhoObs(e.target.value)} placeholder="Obs (opcional)" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 8px',color:'var(--text)',fontSize:13,flex:1}}/>
+                        </div>
+                        <div style={{display:'flex',gap:6}}>
+                          <button type="button" className="btn btn-sm btn-white" onClick={adicionarTamanhoInline}>Salvar</button>
+                          <button type="button" className="btn btn-sm btn-outline" onClick={()=>setShowNovoTamanho(false)}>Cancelar</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="form-row cols-3">
               <div className="form-field"><label>Quantidade</label><input type="number" value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))}/></div>
               <div className="form-field"><label>Compra (R$)</label><input type="number" step="0.01" value={form.costPrice} onChange={e=>setForm(f=>({...f,costPrice:e.target.value}))}/></div>
@@ -2631,8 +2738,8 @@ function Rankings() {
     if(!goalVal) return;
     setGoals(gs=>{
       const ex=gs.findIndex(g=>g.sellerId===editGoal.sellerId&&g.month===m&&g.year===y);
-      if(ex>=0) return gs.map((g,i)=>i===ex?{...g,goal:Number(goalVal)}:g);
-      return [...gs,{sellerId:editGoal.sellerId,month:m,year:y,goal:Number(goalVal)}];
+      if(ex>=0) return gs.map((g,i)=>i===ex?{...g,goal:Number(goalVal),sellerId:editGoal.sellerId,month:m,year:y}:g);
+      return [...gs,{id:'goal_'+editGoal.sellerId+'_'+m+'_'+y,sellerId:editGoal.sellerId,month:m,year:y,goal:Number(goalVal)}];
     });
     addToast('Meta atualizada!','success'); setEditGoal(null);
   };
@@ -3103,8 +3210,14 @@ function Employees() {
   const save = () => {
     if(!form.name) return addToast('Informe o nome','error');
     if(!editId&&!form.password) return addToast('Informe a senha','error');
-    if(editId) updateCurrentUser(sellers.map(s=>s.id===editId?{...s,...form,photo:photoPreview}:s));
-    else setSellers(ss=>[...ss,{...form,id:'s'+Date.now(),photo:photoPreview||null}]);
+    if(editId) {
+      const updated = sellers.map(s=>s.id===editId?{...s,...form,photo:photoPreview??s.photo}:s);
+      setSellers(updated);
+      // Atualizar currentUser se for o próprio usuário editando
+      updateCurrentUser(updated);
+    } else {
+      setSellers(ss=>[...ss,{...form,id:'s'+Date.now(),photo:photoPreview||null,active:true}]);
+    }
     addToast('Salvo!','success'); setModal(null);
   };
 
@@ -3200,8 +3313,9 @@ function Goals() {
     if(!form.sellerId||!form.goal) return addToast('Preencha todos os campos','error');
     setGoals(gs=>{
       const ex=gs.findIndex(g=>g.sellerId===form.sellerId&&g.month===Number(form.month)&&g.year===Number(form.year));
-      if(ex>=0) return gs.map((g,i)=>i===ex?{...form,goal:Number(form.goal),month:Number(form.month),year:Number(form.year)}:g);
-      return [...gs,{...form,goal:Number(form.goal),month:Number(form.month),year:Number(form.year)}];
+      const entry={...form,id:'goal_'+form.sellerId+'_'+form.month+'_'+form.year,goal:Number(form.goal),month:Number(form.month),year:Number(form.year)};
+      if(ex>=0) return gs.map((g,i)=>i===ex?entry:g);
+      return [...gs,entry];
     });
     addToast('Meta definida!','success'); setModal(false);
   };
@@ -3421,6 +3535,68 @@ function Reservas() {
             })}</tbody>
           </table></div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ===== TAMANHOS =====
+function TamanhosConfig() {
+  const { tamanhos, setTamanhos, deleteTamanho, addToast } = useContext(AppContext);
+  const [nome, setNome] = useState('');
+  const [obs, setObs] = useState('');
+  const [confirm, setConfirm] = useState(null);
+
+  const add = () => {
+    const n = nome.trim().toUpperCase();
+    if(!n) return addToast('Informe a nomenclatura','error');
+    if(tamanhos.find(t=>t.nome===n)) return addToast('Tamanho já cadastrado','error');
+    setTamanhos(ts=>[...ts,{id:'tam'+Date.now(),nome:n,obs:obs.trim()}]);
+    setNome(''); setObs('');
+    addToast('Tamanho cadastrado!','success');
+  };
+
+  const del = (t) => setConfirm({
+    icon:'📐', titulo:'Excluir Tamanho',
+    msg:`Excluir "${t.nome}"? Produtos que usam este tamanho manterão o valor salvo.`,
+    btnLabel:'Excluir', btnClass:'btn-danger',
+    onConfirm:()=>{ deleteTamanho(t.id); addToast('Tamanho removido','info'); setConfirm(null); }
+  });
+
+  return (
+    <div>
+      {confirm && <ConfirmModal {...confirm} onCancel={()=>setConfirm(null)}/>}
+      <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:20,letterSpacing:3,color:'var(--text)',marginBottom:20}}>CADASTRO DE TAMANHOS</div>
+      <div className="card mb-16">
+        <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:14,letterSpacing:2,color:'var(--text)',marginBottom:14}}>NOVO TAMANHO</div>
+        <div className="form-row cols-2">
+          <div className="form-field">
+            <label>Nomenclatura *</label>
+            <input value={nome} onChange={e=>setNome(e.target.value.toUpperCase())} placeholder="Ex: G, XG, 2XG, PP..."/>
+          </div>
+          <div className="form-field">
+            <label>Observação (opcional)</label>
+            <input value={obs} onChange={e=>setObs(e.target.value)} placeholder="Ex: 46/48, 1.70-1.80m..."/>
+          </div>
+        </div>
+        <button className="btn btn-white" onClick={add}>+ Adicionar Tamanho</button>
+      </div>
+      <div className="card">
+        <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:14,letterSpacing:2,color:'var(--text)',marginBottom:14}}>TAMANHOS CADASTRADOS ({tamanhos.length})</div>
+        {tamanhos.length===0
+          ? <div className="empty-state"><div className="icon">📐</div><p>Nenhum tamanho cadastrado</p></div>
+          : <div style={{display:'flex',flexWrap:'wrap',gap:10}}>
+              {tamanhos.map(t=>(
+                <div key={t.id} style={{display:'flex',alignItems:'center',gap:8,background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 12px'}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:15,color:'var(--text)'}}>{t.nome}</div>
+                    {t.obs && <div style={{fontSize:11,color:'var(--g3)'}}>{t.obs}</div>}
+                  </div>
+                  <button className="btn-icon" onClick={()=>del(t)} style={{color:'var(--danger)',marginLeft:4}}>✕</button>
+                </div>
+              ))}
+            </div>
+        }
       </div>
     </div>
   );
