@@ -800,7 +800,7 @@ function Login() {
         <div style={{marginTop:12,display:'flex',justifyContent:'center'}}>
           <button style={{background:'none',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 14px',color:'var(--g3)',fontSize:11,cursor:'pointer'}} onClick={()=>setDevice(null)}>⇄ Trocar dispositivo</button>
         </div>
-        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v6.6</div>
+        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v6.7</div>
       </div>
     </div>
   );
@@ -3527,7 +3527,7 @@ function Goals() {
       const g=goals.find(gg=>gg.sellerId===s.id&&gg.month===m&&gg.year===y);
       const vend=sales.filter(s2=>s2.sellerId===s.id&&isSameMonth(s2.date,m,y)).reduce((a,s2)=>a+s2.total,0);
       return {m,meta:g?.goal||0,vendido:vend,atingiu:g&&vend>=g.goal};
-    })})};
+    })}))};
   }).filter(s=>s.anos.length>0);
 
   return (
