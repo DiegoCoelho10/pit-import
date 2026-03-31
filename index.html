@@ -271,8 +271,11 @@ tr:hover td{background:var(--bg3)}
 .is-mobile .stat-value{font-size:22px}
 .is-mobile .chart-wrap{height:160px}
 .is-mobile .modal{max-width:100%;margin:0}
-.is-mobile .modal-overlay{padding:0;align-items:flex-end;padding-bottom:env(safe-area-inset-bottom,0px)}
-.is-mobile .modal{border-radius:var(--rl) var(--rl) 0 0;max-height:85svh;max-height:85dvh}
+.is-mobile .modal-overlay{padding:0;align-items:stretch}
+.is-mobile .modal{border-radius:0;max-height:100%;height:100%}
+.is-mobile .modal-overlay{align-items:stretch}
+.is-mobile .modal-body{padding:14px;overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1}
+.is-mobile .modal-footer{position:sticky;bottom:0;background:var(--bg2);z-index:2;padding:12px 14px;padding-bottom:max(12px,env(safe-area-inset-bottom))}
 .is-mobile .sale-item-row{grid-template-columns:1fr auto auto auto}
 .is-mobile table{min-width:500px}
 .is-mobile .tabs{width:100%;overflow-x:auto}
@@ -737,7 +740,7 @@ function Login() {
         <div style={{marginTop:12,display:'flex',justifyContent:'center'}}>
           <button style={{background:'none',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 14px',color:'var(--g3)',fontSize:11,cursor:'pointer'}} onClick={()=>setDevice(null)}>⇄ Trocar dispositivo</button>
         </div>
-        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v5.2</div>
+        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v5.3</div>
       </div>
     </div>
   );
