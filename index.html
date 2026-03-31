@@ -374,7 +374,17 @@ function useFirestore(collection, setData) {
 }
 
 function AppProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(null);
+  // Restaurar usuário salvo na sessão (persiste no refresh, limpa ao fechar aba)
+  const [currentUser, setCurrentUserRaw] = useState(()=>{
+    try { const s=sessionStorage.getItem('pit_user'); return s?JSON.parse(s):null; } catch(e){return null;}
+  });
+  const setCurrentUser = (user) => {
+    setCurrentUserRaw(user);
+    try {
+      if(user) sessionStorage.setItem('pit_user', JSON.stringify(user));
+      else sessionStorage.removeItem('pit_user');
+    } catch(e){}
+  };
   const [sellers, setSellersRaw] = useState(INITIAL_SELLERS);
   const [products, setProductsRaw] = useState([]);
   const [sales, setSalesRaw] = useState([]);
@@ -387,7 +397,13 @@ function AppProvider({ children }) {
   const [lojas, setLojas] = useState(['Cosmos','Nova Cidade']);
   const [toasts, setToasts] = useState([]);
   const [theme, setTheme] = useState('dark');
-  const [device, setDevice] = useState(null);
+  const [device, setDeviceRaw] = useState(()=>{
+    try { return sessionStorage.getItem('pit_device')||null; } catch(e){return null;}
+  });
+  const setDevice = (d) => {
+    setDeviceRaw(d);
+    try { if(d) sessionStorage.setItem('pit_device',d); else sessionStorage.removeItem('pit_device'); } catch(e){}
+  };
   const [firebaseStatus, setFirebaseStatus] = useState({ connected: false, configured: FIREBASE_CONFIGURED });
 
   const { saveDoc: saveSeller } = useFirestore('sellers', (data) => {
@@ -944,7 +960,23 @@ function MainApp() {
   const [showPassModal, setShowPassModal] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement);
   const fileRef = useRef();
+
+  // Sincronizar estado ao mudar fullscreen (ex: usuário pressiona Esc)
+  useEffect(()=>{
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if(!document.fullscreenElement) {
+      document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen && document.exitFullscreen();
+    }
+  };
   const menu = currentUser.role==='admin' ? ADMIN_MENU : SELLER_MENU;
   const sections = [...new Set(menu.map(m=>m.section))];
   const bottomItems = currentUser.role==='admin' ? MOBILE_ADMIN_BOTTOM : MOBILE_SELLER_BOTTOM;
@@ -1013,6 +1045,7 @@ function MainApp() {
             {!collapsed && (
               <div className="footer-btns">
                 <button className="btn btn-sm btn-outline" style={{flex:1}} onClick={()=>setShowPassModal(true)}>🔑</button>
+                <button className="btn btn-sm btn-outline" onClick={toggleFullscreen} title={isFullscreen?'Sair tela cheia':'Tela cheia'} style={{fontSize:14}}>⛶</button>
                 <button className="btn btn-sm btn-outline" onClick={toggleTheme}>{theme==='dark'?'☀️':'🌙'}</button>
                 <button className="btn btn-sm btn-outline" onClick={()=>setDevice(null)}>📱</button>
                 {currentUser.role==='admin' && <button className="btn btn-sm btn-danger" title="Resetar Sistema" onClick={()=>setShowResetModal(true)}>🗑</button>}
@@ -1031,6 +1064,7 @@ function MainApp() {
           <div style={{marginLeft:'auto',display:'flex',gap:8,alignItems:'center'}}>
             <div className={`firebase-dot ${firebaseStatus.connected?'connected':''}`}/>
             <button className="theme-toggle" onClick={()=>setShowPassModal(true)} title="Alterar Senha">🔑</button>
+            <button className="theme-toggle" onClick={toggleFullscreen} title={isFullscreen?'Sair da tela cheia':'Tela cheia'} style={{fontSize:15}}>{isFullscreen?'⛶':'⛶'}</button>
             <button className="theme-toggle" onClick={toggleTheme}>{theme==='dark'?'☀️':'🌙'}</button>
             <button style={{background:'none',border:'none',color:'var(--g3)',fontSize:12,cursor:'pointer'}} onClick={()=>setCurrentUser(null)}>Sair</button>
           </div>
@@ -1044,6 +1078,7 @@ function MainApp() {
             </div>
             <div className="store-badge">{currentUser.store}</div>
             <button className="theme-toggle" onClick={()=>setShowPassModal(true)} title="Alterar Senha">🔑</button>
+            <button className="theme-toggle" onClick={toggleFullscreen} title={isFullscreen?'Sair tela cheia':'Tela cheia'} style={{fontSize:15,border:isFullscreen?'1px solid var(--g2)':'1px solid transparent'}}>⛶</button>
             <button className="theme-toggle" onClick={toggleTheme}>{theme==='dark'?'☀️':'🌙'}</button>
           </div>
         </div>
@@ -1083,6 +1118,7 @@ function MainApp() {
                 <div style={{padding:'8px 20px 4px',fontSize:9,letterSpacing:3,textTransform:'uppercase',color:'var(--g2)',borderTop:'1px solid var(--bg5)',marginTop:4}}>Configurações</div>
                 <div className="bnav-more-item" onClick={()=>{setShowMore(false);setShowPassModal(true)}}><span style={{width:22,textAlign:'center'}}>🔑</span><span>Alterar Senha</span></div>
                 <div className="bnav-more-item" onClick={()=>{setShowMore(false);toggleTheme()}}><span style={{width:22,textAlign:'center'}}>{theme==='dark'?'☀️':'🌙'}</span><span>{theme==='dark'?'Tema Claro':'Tema Escuro'}</span></div>
+                <div className="bnav-more-item" onClick={()=>{setShowMore(false);toggleFullscreen();}}><span style={{width:22,textAlign:'center',fontSize:16}}>⛶</span><span>{isFullscreen?'Sair da Tela Cheia':'Tela Cheia'}</span></div>
                 <div className="bnav-more-item" onClick={()=>{setShowMore(false);setDevice(null)}}><span style={{width:22,textAlign:'center'}}>🖥️</span><span>Trocar Dispositivo</span></div>
                 {currentUser.role==='admin'&&<div className="bnav-more-item" style={{color:'var(--danger)'}} onClick={()=>{setShowMore(false);setShowResetModal(true)}}><span style={{width:22,textAlign:'center'}}>🗑</span><span>Resetar Sistema</span></div>}
 
