@@ -800,7 +800,7 @@ function Login() {
         <div style={{marginTop:12,display:'flex',justifyContent:'center'}}>
           <button style={{background:'none',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 14px',color:'var(--g3)',fontSize:11,cursor:'pointer'}} onClick={()=>setDevice(null)}>⇄ Trocar dispositivo</button>
         </div>
-        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v6.8</div>
+        <div style={{position:'absolute',bottom:8,right:12,fontSize:9,color:'var(--g2)',letterSpacing:1,fontFamily:'DM Mono,monospace'}}>v6.9</div>
       </div>
     </div>
   );
@@ -1915,7 +1915,10 @@ function NewSale() {
                   }
                   <div><div style={{fontSize:13,fontWeight:500,color:'var(--text)'}}>{item.description}</div><div style={{fontSize:10,color:'var(--g3)'}}>{item.code}</div></div>
                 </div>
-                <div><input type="number" min="1" value={item.qty} onChange={e=>updateQty(item.productId,parseInt(e.target.value)||0)} style={{width:54,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'4px 6px',color:'var(--text)',fontSize:13}}/></div>
+                <div><input type="number" min="1" value={item.qty}
+                  onChange={e=>{const v=e.target.value;if(v==='')return;const n=parseInt(v);if(!isNaN(n)&&n>0)updateQty(item.productId,n);}}
+                  onBlur={e=>{const n=parseInt(e.target.value);if(isNaN(n)||n<=0){e.target.value=item.qty;}}}
+                  style={{width:54,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'4px 6px',color:'var(--text)',fontSize:13}}/></div>
                 <div style={{fontFamily:'DM Mono,monospace',fontSize:12,color:'var(--text)'}}>{fmtMoney(item.unitPrice)}</div>
                 <div style={{fontFamily:'DM Mono,monospace',fontSize:13,fontWeight:600,color:'var(--text)'}}>{fmtMoney(item.total)}</div>
                 <button className="btn-icon" onClick={()=>updateQty(item.productId,0)} style={{color:'var(--danger)'}}>✕</button>
