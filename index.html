@@ -994,7 +994,7 @@ const ADMIN_MENU = [
   {id:'stock',label:'Estoque',icon:'▦',section:'Produtos'},
   {id:'reservas',label:'Reservas',icon:'🔒',section:'Produtos'},
   {id:'clients',label:'Clientes',icon:'◑',section:'Clientes'},
-  {id:'whatsapp',label:'WhatsApp Clientes',icon:'📲',section:'Clientes'},
+  {id:'whatsapp',label:'WhatsApp',icon:'📲',section:'Clientes'},
   {id:'rankings',label:'Rankings',icon:'▲',section:'Análises'},
   {id:'cashflow',label:'Caixa Mensal',icon:'◇',section:'Financeiro'},
   {id:'cashflow-geral',label:'Balanço Geral',icon:'◈',section:'Financeiro'},
@@ -1008,7 +1008,7 @@ const SELLER_MENU = [
   {id:'new-sale',label:'Nova Venda',icon:'＋',section:'Vendas'},
   {id:'my-sales',label:'Minhas Vendas',icon:'≡',section:'Vendas'},
   {id:'clients',label:'Clientes',icon:'◑',section:'Clientes'},
-  {id:'whatsapp',label:'WhatsApp Clientes',icon:'📲',section:'Clientes'},
+  {id:'whatsapp',label:'WhatsApp',icon:'📲',section:'Clientes'},
   {id:'reservas',label:'Reservas',icon:'🔒',section:'Produtos'},
   {id:'rankings',label:'Ranking',icon:'▲',section:'Análises'},
 ];
@@ -2409,7 +2409,7 @@ function Stock() {
   const [filterStore, setFilterStore] = useState('Todos');
   const [modal, setModal] = useState(null);
   const [editProduct, setEditProduct] = useState(null);
-  const [form, setForm] = useState({code:'',description:'',store:'Cosmos',qty:0,costPrice:0,salePrice:0,photo:null,temVariacao:false,tamanho:'',modoMultiplo:false,variacoes:[{tamanho:'',qty:0}]});
+  const [form, setForm] = useState({code:'',description:'',store:'Cosmos',qty:0,costPrice:0,salePrice:0,photo:null,temVariacao:false,tamanho:'',modoMultiplo:false,variacoes:[]});
   const [novoTamanhoInline, setNovoTamanhoInline] = useState('');
   const [novoTamanhoObs, setNovoTamanhoObs] = useState('');
   const [showNovoTamanho, setShowNovoTamanho] = useState(false);
@@ -2450,25 +2450,19 @@ function Stock() {
 
   const saveProduct = () => {
     if(!form.description) return addToast('Preencha a descrição','error');
-    const codigoBase = (form.code||'').trim() || gerarCodigo();
+    const base=(form.code||'').trim()||gerarCodigo();
     if(modal==='add'){
-      if(form.modoMultiplo && form.variacoes && form.variacoes.some(v=>v.tamanho)) {
-        const vars = form.variacoes.filter(v=>v.tamanho.trim());
-        if(!vars.length) return addToast('Adicione pelo menos um tamanho','error');
-        const novos = vars.map((v,i)=>{
-          const cod = codigoBase+'-'+v.tamanho.toUpperCase().replace(/\s+/g,'');
-          return {...form,id:'p'+Date.now()+i,code:cod,codigoBase,tamanho:v.tamanho,qty:Number(v.qty)||0,costPrice:Number(form.costPrice),salePrice:Number(form.salePrice),modoMultiplo:undefined,variacoes:undefined};
-        });
+      if(form.modoMultiplo&&form.variacoes&&form.variacoes.some(v=>Number(v.qty)>0)){
+        const novos=form.variacoes.filter(v=>Number(v.qty)>0).map((v,i)=>({...form,id:'p'+Date.now()+i,code:base+'-'+v.tamanho.replace(/\s+/g,''),tamanho:v.tamanho,qty:Number(v.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice),modoMultiplo:undefined,variacoes:undefined}));
         setProducts(ps=>[...ps,...novos]);
-        addToast(vars.length+' variações cadastradas! Base: '+codigoBase,'success');
+        addToast(novos.length+' tamanhos cadastrados!','success');
       } else {
-        if(products.find(p=>p.code===codigoBase&&p.store===form.store)) return addToast('Código já existe nesta loja','error');
-        const newProd = {...form,code:codigoBase,id:'p'+Date.now(),qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice),modoMultiplo:undefined,variacoes:undefined};
-        setProducts(ps=>[...ps,newProd]);
-        addToast('Produto cadastrado! Código: '+codigoBase,'success');
+        if(products.find(p=>p.code===base&&p.store===form.store)) return addToast('Código já existe nesta loja','error');
+        setProducts(ps=>[...ps,{...form,code:base,id:'p'+Date.now(),qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice),modoMultiplo:undefined,variacoes:undefined}]);
+        addToast('Produto cadastrado!','success');
       }
     } else {
-      setProducts(ps=>ps.map(p=>p.id===editProduct.id?{...form,code:codigoBase,id:p.id,qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice),modoMultiplo:undefined,variacoes:undefined}:p));
+      setProducts(ps=>ps.map(p=>p.id===editProduct.id?{...form,code:base,id:p.id,qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice),modoMultiplo:undefined,variacoes:undefined}:p));
       addToast('Produto atualizado!','success');
     }
     setModal(null);
@@ -2600,68 +2594,45 @@ function Stock() {
             <div className="form-row"><div className="form-field"><label>Descrição *</label><input value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Nome do produto"/></div></div>
 
             {/* VARIAÇÃO */}
-            <div className="form-row">
-              <div className="form-field">
-                <label>Tamanhos</label>
-                <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap'}}>
-                  <button type="button" onClick={()=>setForm(f=>({...f,temVariacao:false,tamanho:'',modoMultiplo:false}))}
-                    className={'btn btn-sm '+(!form.temVariacao&&!form.modoMultiplo?'btn-white':'btn-outline')}>Sem tamanho</button>
-                  <button type="button" onClick={()=>setForm(f=>({...f,temVariacao:true,modoMultiplo:false}))}
-                    className={'btn btn-sm '+(form.temVariacao&&!form.modoMultiplo?'btn-white':'btn-outline')}>Um tamanho</button>
-                  <button type="button" onClick={()=>setForm(f=>({...f,temVariacao:false,modoMultiplo:true,variacoes:tamanhos.length?tamanhos.map(t=>({tamanho:t.nome,qty:0})):[{tamanho:'P',qty:0},{tamanho:'M',qty:0},{tamanho:'G',qty:0}]}))}
-                    className={'btn btn-sm '+(form.modoMultiplo?'btn-white':'btn-outline')}>Vários tamanhos</button>
-                </div>
-                {form.temVariacao&&!form.modoMultiplo&&(
-                  <div>
-                    <select value={form.tamanho} onChange={e=>{ if(e.target.value==='__novo__'){setShowNovoTamanho(true);}else{setForm(f=>({...f,tamanho:e.target.value}));} }}
-                      style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13,width:'100%'}}>
-                      <option value="">Selecionar tamanho...</option>
-                      {tamanhos.map(t=><option key={t.id} value={t.nome}>{t.nome}{t.obs?' ('+t.obs+')':''}</option>)}
-                      <option value="__novo__">+ Cadastrar novo tamanho...</option>
-                    </select>
-                    {form.tamanho&&<div style={{marginTop:6,fontSize:11,color:'var(--success)'}}>Tamanho: {form.tamanho}</div>}
-                    {showNovoTamanho&&(
-                      <div style={{marginTop:8,padding:12,background:'var(--bg3)',borderRadius:'var(--r)',border:'1px solid var(--bg5)'}}>
-                        <div style={{fontSize:10,letterSpacing:1,color:'var(--g3)',marginBottom:8}}>NOVO TAMANHO</div>
-                        <div style={{display:'flex',gap:6,marginBottom:6}}>
-                          <input value={novoTamanhoInline} onChange={e=>setNovoTamanhoInline(e.target.value.toUpperCase())} placeholder="Ex: 2XG" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 8px',color:'var(--text)',fontSize:13,flex:1}}/>
-                          <input value={novoTamanhoObs} onChange={e=>setNovoTamanhoObs(e.target.value)} placeholder="Obs (opcional)" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 8px',color:'var(--text)',fontSize:13,flex:1}}/>
-                        </div>
-                        <div style={{display:'flex',gap:6}}>
-                          <button type="button" className="btn btn-sm btn-white" onClick={adicionarTamanhoInline}>Salvar</button>
-                          <button type="button" className="btn btn-sm btn-outline" onClick={()=>setShowNovoTamanho(false)}>Cancelar</button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {form.modoMultiplo&&(
-                  <div>
-                    <div style={{fontSize:11,color:'var(--subtext)',marginBottom:10}}>Digite a quantidade de cada tamanho (deixe 0 para não cadastrar):</div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
-                      {(form.variacoes||[]).map((v,i)=>(
-                        <div key={i} style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',textAlign:'center'}}>
-                          <div style={{fontWeight:700,color:'var(--text)',fontSize:12,marginBottom:6}}>{v.tamanho}</div>
-                          <input type="number" min="0" value={v.qty}
-                            onChange={e=>{const nv=(form.variacoes||[]).map((x,j)=>j===i?{...x,qty:e.target.value}:x);setForm(f=>({...f,variacoes:nv}));}}
-                            style={{width:'100%',background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 4px',color:'var(--text)',fontSize:14,fontWeight:700,textAlign:'center',boxSizing:'border-box'}}/>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{marginTop:8,fontSize:11,color:'var(--success)'}}>
-                      Total: {(form.variacoes||[]).reduce((a,v)=>a+(Number(v.qty)||0),0)} unidades em {(form.variacoes||[]).filter(v=>Number(v.qty)>0).length} tamanho(s)
-                    </div>
-                  </div>
-                )}
+            <div className="form-row"><div className="form-field">
+              <label>Tamanhos</label>
+              <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+                <button type="button" className={"btn btn-sm "+(!form.temVariacao&&!form.modoMultiplo?"btn-white":"btn-outline")} onClick={()=>setForm(f=>({...f,temVariacao:false,tamanho:"",modoMultiplo:false,variacoes:[]}))}>Sem tamanho</button>
+                <button type="button" className={"btn btn-sm "+(form.temVariacao&&!form.modoMultiplo?"btn-white":"btn-outline")} onClick={()=>setForm(f=>({...f,temVariacao:true,modoMultiplo:false}))}>Um tamanho</button>
+                <button type="button" className={"btn btn-sm "+(form.modoMultiplo?"btn-white":"btn-outline")} onClick={()=>setForm(f=>({...f,temVariacao:false,modoMultiplo:true,variacoes:tamanhos.length?tamanhos.map(t=>({tamanho:t.nome,qty:0})):[{tamanho:"P",qty:0},{tamanho:"M",qty:0},{tamanho:"G",qty:0}]}))}>Vários tamanhos</button>
               </div>
-            </div>
-
+              {form.temVariacao&&!form.modoMultiplo&&(<div>
+                <select value={form.tamanho} onChange={e=>e.target.value==="__novo__"?setShowNovoTamanho(true):setForm(f=>({...f,tamanho:e.target.value}))} style={{background:"var(--bg3)",border:"1px solid var(--bg5)",borderRadius:"var(--r)",padding:"8px 10px",color:"var(--text)",fontSize:13,width:"100%"}}>
+                  <option value="">Selecionar tamanho...</option>
+                  {tamanhos.map(t=><option key={t.id} value={t.nome}>{t.nome}{t.obs?" ("+t.obs+")":""}</option>)}
+                  <option value="__novo__">+ Novo tamanho</option>
+                </select>
+                {showNovoTamanho&&(<div style={{marginTop:8,padding:10,background:"var(--bg3)",border:"1px solid var(--bg5)",borderRadius:"var(--r)"}}>
+                  <div style={{display:"flex",gap:6,marginBottom:6}}>
+                    <input value={novoTamanhoInline} onChange={e=>setNovoTamanhoInline(e.target.value.toUpperCase())} placeholder="Ex: 2XG" style={{flex:1,background:"var(--bg4)",border:"1px solid var(--bg5)",borderRadius:"var(--r)",padding:"6px 8px",color:"var(--text)",fontSize:13}}/>
+                    <input value={novoTamanhoObs} onChange={e=>setNovoTamanhoObs(e.target.value)} placeholder="Obs" style={{flex:1,background:"var(--bg4)",border:"1px solid var(--bg5)",borderRadius:"var(--r)",padding:"6px 8px",color:"var(--text)",fontSize:13}}/>
+                  </div>
+                  <div style={{display:"flex",gap:6}}>
+                    <button type="button" className="btn btn-sm btn-white" onClick={adicionarTamanhoInline}>Salvar</button>
+                    <button type="button" className="btn btn-sm btn-outline" onClick={()=>setShowNovoTamanho(false)}>Cancelar</button>
+                  </div>
+                </div>)}
+              </div>)}
+              {form.modoMultiplo&&(<div>
+                <div style={{fontSize:11,color:"var(--subtext)",marginBottom:8}}>Quantidade por tamanho (0 = não cadastrar):</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+                  {(form.variacoes||[]).map((v,i)=>(
+                    <div key={i} style={{background:"var(--bg3)",border:"1px solid var(--bg5)",borderRadius:"var(--r)",padding:"8px",textAlign:"center"}}>
+                      <div style={{fontWeight:700,fontSize:12,color:"var(--text)",marginBottom:4}}>{v.tamanho}</div>
+                      <input type="number" min="0" value={v.qty} onChange={e=>{const nv=(form.variacoes||[]).map((x,j)=>j===i?{...x,qty:e.target.value}:x);setForm(f=>({...f,variacoes:nv}));}} style={{width:"100%",background:"var(--bg4)",border:"1px solid var(--bg5)",borderRadius:"var(--r)",padding:"5px 2px",color:"var(--text)",fontSize:14,fontWeight:700,textAlign:"center",boxSizing:"border-box"}}/>
+                    </div>
+                  ))}
+                </div>
+                <div style={{marginTop:6,fontSize:11,color:"var(--success)"}}>Total: {(form.variacoes||[]).reduce((a,v)=>a+(Number(v.qty)||0),0)} un em {(form.variacoes||[]).filter(v=>Number(v.qty)>0).length} tamanho(s)</div>
+              </div>)}
+            </div></div>
             {!form.modoMultiplo&&<div className="form-row cols-3">
               <div className="form-field"><label>Quantidade</label><input type="number" value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))}/></div>
-              <div className="form-field"><label>Compra (R$)</label><input type="number" step="0.01" value={form.costPrice} onChange={e=>setForm(f=>({...f,costPrice:e.target.value}))}/></div>
-              <div className="form-field"><label>Venda (R$)</label><input type="number" step="0.01" value={form.salePrice} onChange={e=>setForm(f=>({...f,salePrice:e.target.value}))}/></div>
-            </div>}
-            {form.modoMultiplo&&<div className="form-row cols-2">
               <div className="form-field"><label>Compra (R$)</label><input type="number" step="0.01" value={form.costPrice} onChange={e=>setForm(f=>({...f,costPrice:e.target.value}))}/></div>
               <div className="form-field"><label>Venda (R$)</label><input type="number" step="0.01" value={form.salePrice} onChange={e=>setForm(f=>({...f,salePrice:e.target.value}))}/></div>
             </div>}
@@ -3890,111 +3861,6 @@ function Reservas() {
     </div>
   );
 }
-
-// ===== WHATSAPP CLIENTES =====
-function WhatsApp() {
-  const { clients, sales, addToast } = useContext(AppContext);
-  const [tab, setTab] = useState('posVenda');
-  const [search, setSearch] = useState('');
-  const hoje = new Date();
-
-  const posVenda = clients.filter(c=>c.phone).map(c=>{
-    const ult = sales.filter(s=>s.clientId===c.id&&s.status!=='cancelada').sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
-    if(!ult) return null;
-    const dias = Math.floor((hoje-new Date(ult.date))/(1000*60*60*24));
-    return {...c,ult,dias};
-  }).filter(Boolean).filter(c=>c.dias>=1&&c.dias<=7).sort((a,b)=>a.dias-b.dias);
-
-  const inativos = clients.filter(c=>c.phone).map(c=>{
-    const ult = sales.filter(s=>s.clientId===c.id&&s.status!=='cancelada').sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
-    const dias = ult?Math.floor((hoje-new Date(ult.date))/(1000*60*60*24)):999;
-    return {...c,dias,ult};
-  }).filter(c=>c.dias>=60).sort((a,b)=>b.dias-a.dias);
-
-  const aniversariantes = clients.filter(c=>c.phone&&c.dataNasc).filter(c=>{
-    try{return new Date(c.dataNasc).getMonth()===hoje.getMonth();}catch(e){return false;}
-  });
-
-  const msgPos = (c) => 'Olá '+c.name+'! 🐾
-
-Aqui é a equipe da *PIT IMPORT*!
-
-Passamos para saber como foi sua experiência com sua compra. Esperamos que tenha amado! 😍
-
-Qualquer dúvida sobre o produto, é só chamar! 💪
-
-Obrigado pela confiança! 🛍️';
-  const msgInativo = (c) => { const d=c.dias>=999?'um tempão':c.dias+' dias'; return 'Ei, '+c.name+'! Tudo bem? 🐾
-
-Faz '+d+' que você não aparece por aqui e a gente sentiu falta! 😢
-
-A *PIT IMPORT* chegou com novidades incríveis! Vem dar uma passada ou fala com a gente. 🔥'; };
-  const msgAniv = (c) => '🎂 *Feliz Aniversário, '+c.name+'!* 🎉
-
-A equipe da *PIT IMPORT* deseja um dia incrível! 🐾💛
-
-Venha comemorar com a gente e garanta seu desconto especial de aniversário! 🛍️';
-
-  const enviar = (phone, msg) => {
-    window.open('https://wa.me/55'+phone.replace(/\D/g,'')+'?text='+encodeURIComponent(msg),'_blank');
-    addToast('Abrindo WhatsApp...','info');
-  };
-
-  const listas = {posVenda,inativos,aniversariantes};
-  const labels = {'posVenda':'Pós-venda (7 dias)','inativos':'Inativos (+60 dias)','aniversariantes':'Aniversariantes'};
-  const lista = (listas[tab]||[]).filter(c=>!search||c.name.toLowerCase().includes(search.toLowerCase()));
-
-  return (
-    <div>
-      <div className="grid-3 mb-24">
-        <div className="stat-card blue" style={{cursor:'pointer'}} onClick={()=>setTab('posVenda')}>
-          <div className="stat-label">Pós-venda</div><div className="stat-value">{posVenda.length}</div>
-          <div style={{fontSize:10,color:'var(--subtext)',marginTop:4}}>Compras nos últimos 7 dias</div>
-        </div>
-        <div className="stat-card red" style={{cursor:'pointer'}} onClick={()=>setTab('inativos')}>
-          <div className="stat-label">Inativos</div><div className="stat-value">{inativos.length}</div>
-          <div style={{fontSize:10,color:'var(--subtext)',marginTop:4}}>Sem compra há +60 dias</div>
-        </div>
-        <div className="stat-card yellow" style={{cursor:'pointer'}} onClick={()=>setTab('aniversariantes')}>
-          <div className="stat-label">Aniversariantes</div><div className="stat-value">{aniversariantes.length}</div>
-          <div style={{fontSize:10,color:'var(--subtext)',marginTop:4}}>Este mês</div>
-        </div>
-      </div>
-      <div className="tabs mb-16">
-        {Object.entries(labels).map(([k,l])=>(
-          <div key={k} className={'tab '+(tab===k?'active':'')} onClick={()=>setTab(k)}>{l} ({(listas[k]||[]).length})</div>
-        ))}
-      </div>
-      <div className="card mb-16">
-        <div className="search-bar"><span className="search-icon">⌕</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Filtrar por nome..."/></div>
-      </div>
-      {lista.length===0?(
-        <div className="card"><div className="empty-state"><div className="icon">📲</div><p>Nenhum cliente nesta lista</p></div></div>
-      ):(
-        <div className="card">
-          {lista.map(c=>(
-            <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
-              <div className="rank-avatar" style={{width:38,height:38,fontSize:13,flexShrink:0}}>{initials(c.name)}</div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontWeight:600,color:'var(--text)',fontSize:13}}>{c.name}</div>
-                <div style={{fontSize:11,color:'var(--subtext)'}}>
-                  {tab==='posVenda'&&('📅 Comprou há '+c.dias+' dia(s) · '+fmtMoney(c.ult&&c.ult.total||0))}
-                  {tab==='inativos'&&('⏱ Sem comprar há '+(c.dias>=999?'muito tempo':c.dias+' dias'))}
-                  {tab==='aniversariantes'&&('🎂 '+new Date(c.dataNasc).toLocaleDateString('pt-BR',{day:'2-digit',month:'long'}))}
-                </div>
-              </div>
-              <div style={{fontSize:11,color:'var(--subtext)',fontFamily:'DM Mono,monospace',flexShrink:0}}>{c.phone}</div>
-              <button className="btn btn-sm btn-success" onClick={()=>enviar(c.phone,tab==='posVenda'?msgPos(c):tab==='aniversariantes'?msgAniv(c):msgInativo(c))}>
-                📲 Enviar
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 
 // ===== TAMANHOS =====
 function TamanhosConfig() {
