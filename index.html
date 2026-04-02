@@ -656,48 +656,38 @@ function somVenda() {
 function BarcodeScanner({ onDetect, onClose }) {
   const videoRef = useRef(null), streamRef = useRef(null);
   const [error, setError] = useState('');
+  const [manualMode, setManualMode] = useState(false);
   const [manualCode, setManualCode] = useState('');
-  const intervalRef = useRef(null);
   useEffect(() => {
-    let active = true;
+    let intervalId;
     const startCamera = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal:'environment' } } });
-        if (!active) { stream.getTracks().forEach(t=>t.stop()); return; }
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } });
         streamRef.current = stream;
-        if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+        if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
         if ('BarcodeDetector' in window) {
           const detector = new BarcodeDetector({ formats:['ean_13','ean_8','code_128','code_39','qr_code','upc_a','upc_e'] });
-          intervalRef.current = setInterval(async () => {
-            if (!videoRef.current || videoRef.current.readyState < 2) return;
+          intervalId = setInterval(async () => {
+            if (!videoRef.current) return;
             try {
               const barcodes = await detector.detect(videoRef.current);
-              if (barcodes.length > 0) { clearInterval(intervalRef.current); if(streamRef.current){streamRef.current.getTracks().forEach(t=>t.stop());} bipScanner(); onDetect(barcodes[0].rawValue); }
+              if (barcodes.length > 0) { clearInterval(intervalId); stopCamera(); bipScanner(); onDetect(barcodes[0].rawValue); }
             } catch(e) {}
-          }, 250);
-        } else { setError('Use Chrome ou Edge para detecção automática. Digite o código abaixo.'); }
-      } catch(e) {
-        let msg = 'Câmera não disponível.';
-        if (e.name==='NotAllowedError') msg='Permissão de câmera negada. Libere nas configurações.';
-        else if (e.name==='NotFoundError') msg='Nenhuma câmera encontrada.';
-        else if (e.name==='NotReadableError') msg='Câmera em uso por outro app.';
-        setError(msg);
-      }
+          }, 300);
+        } else { setError('Câmera ativa. Digite o código manualmente abaixo ou use Chrome para detecção automática.'); setManualMode(true); }
+      } catch(e) { setError('Câmera não disponível. Verifique as permissões.'); }
+    };
+    const stopCamera = () => {
+      if (streamRef.current) { streamRef.current.getTracks().forEach(t=>t.stop()); streamRef.current=null; }
     };
     startCamera();
-    return () => { active=false; clearInterval(intervalRef.current); if(streamRef.current){streamRef.current.getTracks().forEach(t=>t.stop());} };
+    return () => { clearInterval(intervalId); if(streamRef.current){streamRef.current.getTracks().forEach(t=>t.stop());} };
   }, []);
-  const handleManual = () => { if(!manualCode.trim()) return; bipScanner(); onDetect(manualCode.trim()); };
   return (
     <div className="scanner-section">
       {error ? (
-        <div style={{padding:12,background:'rgba(255,68,68,.08)',border:'1px solid rgba(255,68,68,.2)',borderRadius:'var(--r)',marginBottom:8}}>
-          <div style={{color:'var(--danger)',fontSize:12,marginBottom:8}}>⚠ {error}</div>
-          <div style={{display:'flex',gap:6}}>
-            <input value={manualCode} onChange={e=>setManualCode(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleManual()} placeholder="Digite o código..." autoFocus style={{flex:1,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13}}/>
-            <button className="btn btn-sm btn-white" onClick={handleManual}>OK</button>
-            <button className="btn btn-sm btn-outline" onClick={onClose}>✕</button>
-          </div>
+        <div style={{padding:12,background:'rgba(255,68,68,.08)',border:'1px solid rgba(255,68,68,.2)',borderRadius:'var(--r)',color:'var(--danger)',fontSize:12}}>
+          ⚠ {error} <button style={{marginLeft:8,background:'none',border:'none',color:'var(--danger)',cursor:'pointer',fontSize:12,textDecoration:'underline'}} onClick={onClose}>Fechar</button>
         </div>
       ) : (
         <>
@@ -706,8 +696,11 @@ function BarcodeScanner({ onDetect, onClose }) {
           </div>
           <div className="scanner-label">Aponte a câmera para o código de barras</div>
           <div style={{display:'flex',gap:6,marginTop:8}}>
-            <input value={manualCode} onChange={e=>setManualCode(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleManual()} placeholder="Ou digite o código aqui..." style={{flex:1,background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13}}/>
-            <button className="btn btn-sm btn-white" onClick={handleManual} style={{whiteSpace:'nowrap'}}>OK</button>
+            <input value={manualCode} onChange={e=>setManualCode(e.target.value)}
+              onKeyDown={e=>{if(e.key==='Enter'&&manualCode.trim()){onDetect(manualCode.trim());setManualCode('');}}}
+              placeholder="Ou digite o código aqui..."
+              style={{flex:1,background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13}}/>
+            <button className="btn btn-sm btn-white" onClick={()=>{if(manualCode.trim()){onDetect(manualCode.trim());setManualCode('');}}} style={{whiteSpace:'nowrap'}}>OK</button>
             <button className="btn btn-sm btn-outline" onClick={onClose}>✕</button>
           </div>
         </>
@@ -1449,27 +1442,29 @@ function Dashboard() {
           <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,marginBottom:14,color:'var(--text)'}}>METAS DO MÊS</div>
           {sellers.filter(s=>s.role==='seller'&&s.active).map(s=>{
             const goal=goals.find(g=>g.sellerId===s.id&&g.month===m&&g.year===y);
-            const sold=monthSales.filter(x=>x.sellerId===s.id&&x.status!=='cancelada').reduce((a,x)=>a+x.total,0);
-            const meta=goal&&goal.goal||0;
-            const pct=meta>0?Math.min((sold/meta)*100,100):0;
-            const falta=Math.max(0,meta-sold);
+            const sold=monthSales.filter(x=>x.sellerId===s.id).reduce((a,x)=>a+x.total,0);
+            const pct=goal?Math.min((sold/goal.goal)*100,100):0;
+            const soldSemana=monthSales.filter(x=>x.sellerId===s.id&&new Date(x.date)>=inicioSemana).reduce((a,x)=>a+x.total,0);
+            const goalSem=goal?(goal.goal/4):0;
+            const pctSem=goalSem>0?Math.min((soldSemana/goalSem)*100,100):0;
             return (
-              <div key={s.id} style={{marginBottom:14,padding:'12px 14px',background:'var(--bg3)',borderRadius:'var(--rl)',border:'1px solid var(--bg5)'}}>
-                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
-                  <div className="rank-avatar" style={{width:30,height:30,fontSize:11,flexShrink:0}}>{s.photo?<img src={s.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(s.name)}</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700,color:'var(--text)'}}>{s.name}</div>
-                    {meta>0&&<div style={{fontSize:10,color:'var(--subtext)'}}>Meta: {fmtMoney(meta)}</div>}
+              <div key={s.id} style={{marginBottom:14}}>
+                <div className="flex items-center justify-between" style={{marginBottom:3}}>
+                  <div className="flex items-center gap-8">
+                    <div className="rank-avatar" style={{width:26,height:26,fontSize:10}}>{s.photo?<img src={s.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(s.name)}</div>
+                    <span style={{fontSize:12,color:'var(--text)'}}>{s.name}</span>
                   </div>
-                  <div style={{textAlign:'right'}}>
-                    <div style={{fontFamily:'DM Mono,monospace',fontSize:14,fontWeight:700,color:'var(--text)'}}>{fmtMoney(sold)}</div>
-                    <div style={{fontSize:11,fontWeight:700,color:pct>=100?'var(--success)':pct>=70?'var(--warning)':'var(--danger)'}}>{meta>0?pct.toFixed(0)+'%':'sem meta'}</div>
+                  <div className="flex items-center gap-8">
+                    <span style={{fontSize:11,color:'var(--g3)'}}>{fmtMoney(sold)}</span>
+                    <span style={{fontSize:11,fontWeight:700,color:pct>=100?'var(--success)':pct>=70?'var(--warning)':'var(--danger)'}}>{pct.toFixed(0)}%</span>
                   </div>
                 </div>
-                {meta>0&&<>
-                  <div className="progress-bar" style={{height:6,marginBottom:4}}><div className={'progress-fill '+(pct>=100?'green':pct>=70?'yellow':'red')} style={{width:pct+'%'}}/></div>
-                  <div style={{fontSize:11,color:pct>=100?'var(--success)':'var(--subtext)'}}>{pct>=100?'✓ Meta batida!':'Falta '+fmtMoney(falta)+' para a meta'}</div>
-                </>}
+                <div className="progress-bar" style={{marginBottom:2}}><div className={`progress-fill ${pct>=100?'green':pct>=70?'yellow':'red'}`} style={{width:`${pct}%`}}/></div>
+                {goalSem>0&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:2}}>
+                  <span style={{fontSize:9,color:'var(--g2)'}}>Semana: {fmtMoney(soldSemana)} / {fmtMoney(goalSem)}</span>
+                  <span style={{fontSize:9,color:pctSem>=100?'var(--success)':pctSem>=70?'var(--warning)':'var(--danger)'}}>{pctSem.toFixed(0)}%</span>
+                </div>}
+                {goalSem>0&&<div className="progress-bar" style={{height:3}}><div className={`progress-fill ${pctSem>=100?'green':pctSem>=70?'yellow':'red'}`} style={{width:`${pctSem}%`}}/></div>}
               </div>
             );
           })}
@@ -1667,11 +1662,7 @@ function NewSale() {
       subtotal, discountValue, discountType, discountPercent:discountType==='percent'?Number(discount):0,
       discountBy: discountValue>0 ? currentUser.name : '',
       total,
-      paymentMethods: payMethods.map(p=>{
-      const val=Number(p.value)||0;
-      if(p.method==='A prazo'&&val===0&&payMethods.length===1) return {...p,value:total};
-      return {...p,value:val};
-    }),
+      paymentMethods: payMethods.map(p=>({...p,value:(p.method==='A prazo'&&!Number(p.value)&&payMethods.length===1)?total:(Number(p.value)||0)})),
       paymentMethod: payMethods.length===1 ? payMethods[0].method : 'Múltiplos',
       clientId: clientId||'', clientName: clientName||'',
       dueDate: dueDateMain, paid: isPaid,
@@ -1736,29 +1727,7 @@ function NewSale() {
             <div style={{textAlign:'center',fontSize:11,color:'#555',marginBottom:16}}>Obrigado pela preferência!</div>
             <div style={{display:'flex',gap:8}}>
               <button className="btn btn-white" style={{flex:1,background:'#111',color:'#fff'}} onClick={()=>window.print()}>🖨 Imprimir</button>
-              <button className="btn btn-white" style={{flex:1,background:'#25D366',color:'#fff'}} onClick={()=>{
-                const itens=(lastSale.items||[]).map(it=>it.description.replace('  🔒reservado','')+' x'+it.qty+' — '+fmtMoney(it.total)).join('
-');
-                const pagto=(lastSale.paymentMethods&&lastSale.paymentMethods.filter(p=>p.value>0).map(p=>p.method+': '+fmtMoney(p.value)).join(' + '))||lastSale.paymentMethod||'';
-                const troco2=lastSale.troco>0?'
-💰 Troco: '+fmtMoney(lastSale.troco):'';
-                const desc2=lastSale.discountValue>0?'
-🏷 Desconto: -'+fmtMoney(lastSale.discountValue):'';
-                const msg='🐾 *PIT IMPORT*
-'+lastSale.store+' · '+new Date(lastSale.date).toLocaleString('pt-BR')+'
-Vendedor: '+lastSale.sellerName+(lastSale.clientName?'
-Cliente: '+lastSale.clientName:'')+'
-
-'+itens+desc2+'
-
-*TOTAL: '+fmtMoney(lastSale.total)+'*
-💳 '+pagto+troco2+'
-
-Obrigado! 😊';
-                const cli=clients&&clients.find(c=>c.id===lastSale.clientId||c.name===lastSale.clientName);
-                const num=cli&&cli.phone?'55'+cli.phone.replace(/\D/g,''):'';
-                window.open('https://wa.me/'+num+'?text='+encodeURIComponent(msg),'_blank');
-              }}>📲 WhatsApp</button>
+              <button className="btn btn-white" style={{flex:1,background:'#25D366',color:'#fff'}} onClick={()=>{const itens=(lastSale.items||[]).map(it=>'• '+it.description+' x'+it.qty+' '+fmtMoney(it.total)).join('\n');const pagto=lastSale.paymentMethod||'—';const msg='🐾 *PIT IMPORT*\n'+lastSale.store+' · '+new Date(lastSale.date).toLocaleString('pt-BR')+'\nVendedor: '+lastSale.sellerName+(lastSale.clientName?'\nCliente: '+lastSale.clientName:'')+'\n\n'+itens+'\n\n*TOTAL: '+fmtMoney(lastSale.total)+'*\n💳 '+pagto+'\n\nObrigado! 😊 Pit Import';window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');}}>📲 WhatsApp</button>
               <button className="btn btn-outline" style={{flex:1,border:'1px solid #ccc',color:'#111'}} onClick={()=>setShowReceipt(false)}>Fechar</button>
             </div>
           </div>
@@ -1988,10 +1957,10 @@ Obrigado! 😊';
                   </div>
                 );
               })}
-              {(()=>{const tp=payMethods.reduce((a,p)=>a+(Number(p.value)||0),0);const d=total-tp;const ok=Math.abs(d)<0.01;const excede=d<-0.01;return(
-                <div style={{padding:'8px 12px',borderRadius:'var(--r)',background:ok?'rgba(68,255,136,.08)':excede?'rgba(255,68,68,.08)':'rgba(255,204,0,.08)',border:'1px solid '+(ok?'rgba(68,255,136,.3)':excede?'rgba(255,68,68,.3)':'rgba(255,204,0,.3)'),fontSize:12,display:'flex',justifyContent:'space-between',marginBottom:10}}>
-                  <span style={{color:ok?'var(--success)':excede?'var(--danger)':'var(--g3)'}}>{ok?'✓ Valores conferem':excede?'⚠ Valor excede em':'Falta distribuir'}</span>
-                  <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:ok?'var(--success)':excede?'var(--danger)':'var(--warning)'}}>{ok?'Tudo certo':fmtMoney(Math.abs(d))}</span>
+              {(()=>{const tp=payMethods.reduce((a,p)=>a+(Number(p.value)||0),0);const d=total-tp;return(
+                <div style={{padding:'8px 12px',borderRadius:'var(--r)',background:Math.abs(d)<0.01?'rgba(68,255,136,.08)':'rgba(255,204,0,.08)',border:`1px solid ${Math.abs(d)<0.01?'rgba(68,255,136,.3)':'rgba(255,204,0,.3)'}`,fontSize:12,display:'flex',justifyContent:'space-between',marginBottom:10}}>
+                  <span style={{color:Math.abs(d)<0.01?'var(--success)':d<-0.01?'var(--danger)':'var(--g3)'}}>{Math.abs(d)<0.01?'✓ Valores conferem':d<-0.01?'⚠ Excede em':'Falta distribuir'}</span>
+                  <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:Math.abs(d)<0.01?'var(--success)':d<-0.01?'var(--danger)':'var(--warning)'}}>{Math.abs(d)<0.01?'Tudo certo':fmtMoney(Math.abs(d))}</span>
                 </div>
               );})()}
               <button className="btn btn-sm btn-outline" style={{width:'100%'}} onClick={addPayMethod}>+ Adicionar forma</button>
@@ -2057,7 +2026,7 @@ Obrigado! 😊';
             </div>
           )}
           <button type="button" style={{marginTop:8,width:'100%',padding:'8px',borderRadius:'var(--r)',border:'1px dashed var(--bg5)',background:'transparent',color:'var(--g3)',fontSize:12,cursor:'pointer'}}
-            onClick={()=>{if(payMethods.length===1){const cur=payMethods[0];setPayMethods([{method:cur.method,value:'',received:'',dueDate:cur.dueDate||''},{method:'Pix',value:'',received:'',dueDate:''}]);}setShowPayModal(true);}}>
+            onClick={()=>{if(payMethods.length===1){const cur=payMethods[0];setPayMethods([{...cur,value:'',received:'',dueDate:cur.dueDate||''},{method:'Pix',value:'',received:'',dueDate:''}]);}setShowPayModal(true);}}>
             ÷ Dividir em múltiplas formas
           </button>
         </div>
@@ -2100,22 +2069,16 @@ Obrigado! 😊';
 }
 
 // ITEM 1: Edição e exclusão de venda — só admin
+function getValorPrazo(s){
+  if(s.paymentMethods&&s.paymentMethods.length){var p=s.paymentMethods.filter(x=>x.method==='A prazo'),soma=p.reduce((a,x)=>a+(Number(x.value)||0),0);if(soma===0&&s.paymentMethod==='A prazo')return s.total;return soma;}
+  return s.paymentMethod==='A prazo'?s.total:0;
+}
 // helper: valor de um método específico em uma venda
 function getValorMetodo(s, method) {
-  if (s.paymentMethods && s.paymentMethods.length) {
+  if (s.paymentMethods?.length) {
     return s.paymentMethods.filter(p=>p.method===method).reduce((a,p)=>a+(Number(p.value)||0),0);
   }
   return s.paymentMethod===method ? s.total : 0;
-}
-function getValorPrazo(s) {
-  if (s.paymentMethods && s.paymentMethods.length) {
-    var prazo = s.paymentMethods.filter(p=>p.method==='A prazo');
-    if (!prazo.length) return 0;
-    var soma = prazo.reduce((a,p)=>a+(Number(p.value)||0),0);
-    if (soma===0 && s.paymentMethod==='A prazo') return s.total;
-    return soma;
-  }
-  return s.paymentMethod==='A prazo' ? s.total : 0;
 }
 
 function SalesHistory() {
@@ -2395,98 +2358,41 @@ function EditSaleModal({ sale, onClose }) {
 }
 
 function Receivables() {
-  const { sales, setSales, clients, addToast, currentUser } = useContext(AppContext);
+  const { sales, setSales, addToast, currentUser } = useContext(AppContext);
   const isAdmin = currentUser.role === 'admin';
   const [confirm, setConfirm] = useState(null);
-  const [pagarModal, setPagarModal] = useState(null);
-  const [pagarData, setPagarData] = useState(new Date().toISOString().slice(0,10));
-  const pending = sales.filter(s=>s.status!=='cancelada'&&(s.paymentMethod==='A prazo'||s.paymentMethods&&s.paymentMethods.some(p=>p.method==='A prazo')));
-  const pendentes = pending.filter(s=>!s.paidAt);
-  const pagos = pending.filter(s=>s.paidAt);
-  const getDue = (s) => { if(s.paymentMethods&&s.paymentMethods.length){var pm=s.paymentMethods.find(p=>p.method==='A prazo');return pm&&pm.dueDate||s.dueDate||'';}return s.dueDate||''; };
-  const isOverdue = (s) => !s.paidAt && getDue(s) && new Date(getDue(s))<new Date();
-  const registrar = (s) => {
-    setSales(ss=>ss.map(x=>x.id===s.id?{...x,paid:true,paidAt:new Date(pagarData+'T12:00:00').toISOString()}:x));
-    addToast('Pagamento registrado!','success'); setPagarModal(null);
+  const pending = sales.filter(s=>s.status!=='cancelada'&&(s.paymentMethod==='A prazo'||(s.paymentMethods&&s.paymentMethods.some(p=>p.method==='A prazo'))));
+  const markPaid = (id) => {
+    setConfirm({
+      icon:'✅', titulo:'Confirmar Recebimento', msg:'Marcar este valor como recebido?',
+      btnLabel:'Confirmar', btnClass:'btn-success',
+      onConfirm: () => { setSales(ss=>ss.map(s=>s.id===id?{...s,paid:true}:s)); addToast('Marcado como pago ✓','success'); setConfirm(null); }
+    });
   };
-  const abrirWpp = (s) => {
-    var cli = clients&&clients.find(c=>c.id===s.clientId||c.name===s.clientName);
-    if(!cli||!cli.phone) return addToast('Cliente sem telefone cadastrado','error');
-    var valor = fmtMoney(getValorPrazo(s));
-    var venc = getDue(s)?fmtDate(getDue(s)):'a combinar';
-    var itens = (s.items||[]).map(i=>i.description+(i.qty>1?' x'+i.qty:'')).join(', ');
-    var overdue = isOverdue(s);
-    var msg = overdue
-      ? 'Olá '+s.clientName+'! 🐾
-
-Aqui é a equipe da *PIT IMPORT*.
-
-Sua compra de *'+valor+'* em *'+fmtDate(s.date)+'* está em atraso.
-
-📦 '+itens+'
-📅 Vencimento: *'+venc+'*
-
-Por favor, entre em contato! 💪'
-      : 'Olá '+s.clientName+'! 🐾
-
-Aqui é a equipe da *PIT IMPORT*.
-
-Lembrando sua compra:
-
-📦 '+itens+'
-📅 Venda: *'+fmtDate(s.date)+'*
-📋 Vencimento: *'+venc+'*
-💰 Valor: *'+valor+'*';
-    window.open('https://wa.me/55'+cli.phone.replace(/\D/g,'')+'?text='+encodeURIComponent(msg),'_blank');
-  };
+  const isOverdue = (s) => !s.paid && s.dueDate && new Date(s.dueDate)<new Date();
   return (
     <div>
       {confirm && <ConfirmModal {...confirm} onCancel={()=>setConfirm(null)}/>}
-      {pagarModal&&(
-        <div className="modal-overlay" style={{zIndex:2000}}><div className="modal" style={{maxWidth:400}}>
-          <div className="modal-header"><h3>REGISTRAR PAGAMENTO</h3><div className="close-btn" onClick={()=>setPagarModal(null)}>✕</div></div>
-          <div className="modal-body">
-            <div style={{padding:'12px 14px',background:'var(--bg3)',borderRadius:'var(--rl)',marginBottom:14}}>
-              <div style={{fontWeight:700,color:'var(--text)',marginBottom:4}}>{pagarModal.clientName||'—'}</div>
-              <div style={{fontSize:12,color:'var(--g3)'}}>Venda de {fmtDate(pagarModal.date)} · <strong style={{color:'var(--warning)'}}>{fmtMoney(getValorPrazo(pagarModal))}</strong></div>
-            </div>
-            <div className="form-field">
-              <label>Data do pagamento</label>
-              <input type="date" value={pagarData} onChange={e=>setPagarData(e.target.value)} autoFocus/>
-              <div style={{fontSize:11,color:'var(--subtext)',marginTop:6}}>💡 Valor entra no resultado de <strong>{new Date(pagarData+'T12:00:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</strong></div>
-            </div>
-          </div>
-          <div className="modal-footer">
-            <button className="btn btn-outline" onClick={()=>setPagarModal(null)}>Cancelar</button>
-            <button className="btn btn-success" onClick={()=>registrar(pagarModal)}>✓ Confirmar</button>
-          </div>
-        </div></div>
-      )}
       <div className="grid-3 mb-24">
-        <div className="stat-card yellow"><div className="stat-label">Pendente</div><div className="stat-value">{fmtMoney(pendentes.reduce((a,s)=>a+getValorPrazo(s),0))}</div><div className="stat-icon">◎</div></div>
-        <div className="stat-card red"><div className="stat-label">Atrasado</div><div className="stat-value">{fmtMoney(pendentes.filter(s=>isOverdue(s)).reduce((a,s)=>a+getValorPrazo(s),0))}</div><div className="stat-icon">⚠</div></div>
-        <div className="stat-card green"><div className="stat-label">Recebido</div><div className="stat-value">{fmtMoney(pagos.reduce((a,s)=>a+getValorPrazo(s),0))}</div><div className="stat-icon">✓</div></div>
+        <div className="stat-card yellow"><div className="stat-label">Pendente</div><div className="stat-value">{fmtMoney(pending.filter(s=>!s.paid).reduce((a,s)=>a+s.total,0))}</div><div className="stat-icon">◎</div></div>
+        <div className="stat-card red"><div className="stat-label">Atrasado</div><div className="stat-value">{fmtMoney(pending.filter(s=>isOverdue(s)).reduce((a,s)=>a+s.total,0))}</div><div className="stat-icon">⚠</div></div>
+        <div className="stat-card green"><div className="stat-label">Recebido</div><div className="stat-value">{fmtMoney(pending.filter(s=>s.paid).reduce((a,s)=>a+s.total,0))}</div><div className="stat-icon">✓</div></div>
       </div>
       <div className="card"><div className="table-wrap"><table>
-        <thead><tr><th>Cliente</th><th>Vendedor</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Ações</th></tr></thead>
-        <tbody>{pendentes.sort((a,b)=>new Date(getDue(a)||'9999')-new Date(getDue(b)||'9999')).map(s=>{
-          var overdue=isOverdue(s);
+        <thead><tr><th>Cliente</th><th>Vendedor</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Ação</th></tr></thead>
+        <tbody>{pending.sort((a,b)=>new Date(a.dueDate)-new Date(b.dueDate)).map(s=>{
+          const overdue=isOverdue(s);
           return (
             <tr key={s.id}>
               <td style={{fontWeight:600,color:'var(--text)'}}>{s.clientName||'—'}</td>
               <td style={{fontSize:12,color:'var(--text)'}}>{s.sellerName}</td>
               <td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--warning)'}}>{fmtMoney(getValorPrazo(s))}</td>
-              <td style={{color:overdue?'var(--danger)':'var(--text)',fontSize:12,fontWeight:overdue?700:400}}>{getDue(s)?fmtDate(getDue(s)):'—'}{overdue&&<span style={{fontSize:9,color:'var(--danger)',marginLeft:4}}>ATRASADO</span>}</td>
-              <td><span className={'badge '+(overdue?'badge-red':'badge-yellow')}>{overdue?'Atrasado':'Pendente'}</span></td>
-              <td><div style={{display:'flex',gap:6}}>
-                {isAdmin&&<button className="btn btn-sm btn-success" onClick={()=>{setPagarData(new Date().toISOString().slice(0,10));setPagarModal(s);}}>✓ Receber</button>}
-                <button className="btn btn-sm btn-outline" onClick={()=>abrirWpp(s)} title="Cobrar WhatsApp">📲</button>
-              </div></td>
+              <td style={{color:overdue?'var(--danger)':'var(--text)',fontSize:12}}>{fmtDate(s.dueDate)}</td>
+              <td><span className={`badge ${s.paid?'badge-green':overdue?'badge-red':'badge-yellow'}`}>{s.paid?'Pago':overdue?'Atrasado':'Pendente'}</span></td>
+              <td>{!s.paid&&isAdmin&&<button className="btn btn-sm btn-success" onClick={()=>markPaid(s.id)}>✓ Receber</button>}</td>
             </tr>
           );
-        })}
-        {pendentes.length===0&&<tr><td colSpan="6"><div className="empty-state"><p>Nenhum pagamento pendente</p></div></td></tr>}
-        </tbody>
+        })}</tbody>
       </table></div></div>
     </div>
   );
@@ -3371,10 +3277,10 @@ function Cashflow() {
   const totalOut=filtExp.reduce((a,e)=>a+e.amount,0);
 
   const saveExpense = () => {
-    if(!form.description.trim()) return addToast('Informe a descrição','error');
-    const amt = Number(String(form.amount).replace(',','.'));
-    if(!amt||amt<=0) return addToast('Informe um valor válido','error');
-    setExpenses(ex=>[...ex,{...form,id:'e'+Date.now(),amount:amt,description:form.description.trim(),date:form.date?new Date(form.date+'T12:00:00').toISOString():new Date().toISOString()}]);
+    if(!form.description||!form.amount) return addToast('Preencha todos os campos','error');
+    const amt=Number(String(form.amount).replace(',','.'));
+    if(!amt||amt<=0) return addToast('Valor inválido','error');
+    setExpenses(ex=>[...ex,{...form,id:'e'+Date.now(),amount:amt,date:form.date?new Date(form.date+'T12:00:00').toISOString():new Date().toISOString()}]);
     addToast('Despesa cadastrada!','success'); setModal(false);
   };
 
@@ -3499,7 +3405,7 @@ function Employees() {
     if(!form.name) return addToast('Informe o nome','error');
     if(!editId&&!form.password) return addToast('Informe a senha','error');
     if(editId) {
-      const updated = sellers.map(s=>s.id===editId?{...s,...form,photo:photoPreview||s.photo}:s);
+      const updated = sellers.map(s=>s.id===editId?{...s,...form,photo:photoPreview??s.photo}:s);
       setSellers(updated);
       // Atualizar currentUser se for o próprio usuário editando
       updateCurrentUser(updated);
