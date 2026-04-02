@@ -1754,7 +1754,12 @@ function NewSale() {
       subtotal, discountValue, discountType, discountPercent:discountType==='percent'?Number(discount):0,
       discountBy: discountValue>0 ? currentUser.name : '',
       total,
-      paymentMethods: payMethods.map(p=>({...p,value:Number(p.value)||0})),
+      paymentMethods: payMethods.map(p=>{
+        const val = Number(p.value)||0;
+        // Se só tem 1 método A prazo e o valor está zerado, usar o total da venda
+        if(p.method==='A prazo' && val===0 && payMethods.length===1) return {...p, value: total};
+        return {...p, value: val};
+      }),
       paymentMethod: payMethods.length===1 ? payMethods[0].method : 'Múltiplos',
       clientId: clientId||'', clientName: clientName||'',
       dueDate: dueDateMain, paid: isPaid,
@@ -2048,10 +2053,10 @@ function NewSale() {
                   </div>
                 );
               })}
-              {(()=>{const tp=payMethods.reduce((a,p)=>a+(Number(p.value)||0),0);const d=total-tp;const ok=Math.abs(d)<0.01;return(
-                <div style={{padding:'10px 14px',borderRadius:'var(--r)',background:ok?'rgba(61,214,140,.08)':'rgba(245,166,35,.08)',border:`1px solid ${ok?'rgba(61,214,140,.3)':'rgba(245,166,35,.3)'}`,fontSize:12,display:'flex',justifyContent:'space-between',marginBottom:10}}>
-                  <span style={{color:ok?'var(--success)':'var(--warning)'}}>{ok?'✓ Valores conferem':'Falta distribuir'}</span>
-                  <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:ok?'var(--success)':'var(--warning)'}}>{ok?'Tudo certo':fmtMoney(Math.abs(d))}</span>
+              {(()=>{const tp=payMethods.reduce((a,p)=>a+(Number(p.value)||0),0);const d=total-tp;const ok=Math.abs(d)<0.01;const excede=d<-0.01;return(
+                <div style={{padding:'10px 14px',borderRadius:'var(--r)',background:ok?'rgba(61,214,140,.08)':excede?'rgba(240,64,64,.08)':'rgba(245,166,35,.08)',border:`1px solid ${ok?'rgba(61,214,140,.3)':excede?'rgba(240,64,64,.3)':'rgba(245,166,35,.3)'}`,fontSize:12,display:'flex',justifyContent:'space-between',marginBottom:10}}>
+                  <span style={{color:ok?'var(--success)':excede?'var(--danger)':'var(--warning)'}}>{ok?'✓ Valores conferem':excede?'⚠ Valor excede em':'Falta distribuir'}</span>
+                  <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:ok?'var(--success)':excede?'var(--danger)':'var(--warning)'}}>{ok?'Tudo certo':fmtMoney(Math.abs(d))}</span>
                 </div>
               );})()}
               <button className="btn btn-sm btn-outline" style={{width:'100%'}} onClick={addPayMethod}>+ Adicionar forma de pagamento</button>
@@ -2627,7 +2632,14 @@ function Receivables() {
   );
 
   const getValorPrazo = (s) => {
-    if (s.paymentMethods?.length) return s.paymentMethods.filter(p=>p.method==='A prazo').reduce((a,p)=>a+(Number(p.value)||0),0);
+    if (s.paymentMethods?.length) {
+      const prazoMethods = s.paymentMethods.filter(p=>p.method==='A prazo');
+      if (!prazoMethods.length) return 0;
+      const soma = prazoMethods.reduce((a,p)=>a+(Number(p.value)||0),0);
+      // fallback: se soma=0 e só tem A prazo, usar total da venda
+      if (soma === 0 && s.paymentMethod === 'A prazo') return s.total;
+      return soma;
+    }
     return s.paymentMethod === 'A prazo' ? s.total : 0;
   };
 
