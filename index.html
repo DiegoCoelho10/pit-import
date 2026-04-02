@@ -3862,6 +3862,81 @@ function Reservas() {
   );
 }
 
+function WhatsApp() {
+  const { clients, sales, addToast } = useContext(AppContext);
+  const [tab, setTab] = useState('posVenda');
+  const [search, setSearch] = useState('');
+  const hoje = new Date();
+  const posVenda = clients.filter(c=>c.phone).map(c=>{
+    const ult=sales.filter(s=>s.clientId===c.id&&s.status!=='cancelada').sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
+    if(!ult) return null;
+    const dias=Math.floor((hoje-new Date(ult.date))/(1000*60*60*24));
+    return {...c,ult,dias};
+  }).filter(Boolean).filter(c=>c.dias>=1&&c.dias<=7).sort((a,b)=>a.dias-b.dias);
+  const inativos = clients.filter(c=>c.phone).map(c=>{
+    const ult=sales.filter(s=>s.clientId===c.id&&s.status!=='cancelada').sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
+    const dias=ult?Math.floor((hoje-new Date(ult.date))/(1000*60*60*24)):999;
+    return {...c,dias,ult};
+  }).filter(c=>c.dias>=60).sort((a,b)=>b.dias-a.dias);
+  const aniversariantes = clients.filter(c=>c.phone&&c.dataNasc).filter(c=>{
+    try{return new Date(c.dataNasc).getMonth()===hoje.getMonth();}catch(e){return false;}
+  });
+  const msgPos = (c) => 'Olá '+c.name+'! 🐾
+
+Aqui é a equipe da *PIT IMPORT*!
+
+Passamos para saber como foi sua experiência com sua compra. Esperamos que tenha amado! 😍
+
+Qualquer dúvida, é só chamar! 💪
+
+Obrigado pela confiança! 🛍️';
+  const msgInativo = (c) => { const d=c.dias>=999?'um tempão':c.dias+' dias'; return 'Ei, '+c.name+'! Tudo bem? 🐾
+
+Faz '+d+' que você não aparece por aqui e a gente sentiu falta! 😢
+
+A *PIT IMPORT* chegou com novidades incríveis! Vem dar uma passada ou fala com a gente. 🔥'; };
+  const msgAniv = (c) => '🎂 *Feliz Aniversário, '+c.name+'!* 🎉
+
+A equipe da *PIT IMPORT* deseja um dia incrível! 🐾💛
+
+Venha comemorar com a gente e garanta seu desconto especial de aniversário! 🛍️';
+  const enviar = (phone, msg) => { window.open('https://wa.me/55'+phone.replace(/\D/g,'')+'?text='+encodeURIComponent(msg),'_blank'); addToast('Abrindo WhatsApp...','info'); };
+  const listas = {posVenda:posVenda,inativos:inativos,aniversariantes:aniversariantes};
+  const labels = {posVenda:'Pós-venda (7 dias)',inativos:'Inativos (+60 dias)',aniversariantes:'Aniversariantes'};
+  const lista = (listas[tab]||[]).filter(c=>!search||c.name.toLowerCase().includes(search.toLowerCase()));
+  return (
+    <div>
+      <div className="grid-3 mb-24">
+        <div className="stat-card blue" style={{cursor:'pointer'}} onClick={()=>setTab('posVenda')}><div className="stat-label">Pós-venda</div><div className="stat-value">{posVenda.length}</div><div style={{fontSize:10,color:'var(--subtext)',marginTop:4}}>Últimos 7 dias</div></div>
+        <div className="stat-card red" style={{cursor:'pointer'}} onClick={()=>setTab('inativos')}><div className="stat-label">Inativos</div><div className="stat-value">{inativos.length}</div><div style={{fontSize:10,color:'var(--subtext)',marginTop:4}}>Sem compra +60 dias</div></div>
+        <div className="stat-card yellow" style={{cursor:'pointer'}} onClick={()=>setTab('aniversariantes')}><div className="stat-label">Aniversariantes</div><div className="stat-value">{aniversariantes.length}</div><div style={{fontSize:10,color:'var(--subtext)',marginTop:4}}>Este mês</div></div>
+      </div>
+      <div className="tabs mb-16">
+        {Object.entries(labels).map(function(entry){var k=entry[0],l=entry[1];return(<div key={k} className={'tab '+(tab===k?'active':'')} onClick={()=>setTab(k)}>{l} ({(listas[k]||[]).length})</div>);})}
+      </div>
+      <div className="card mb-16"><div className="search-bar"><span className="search-icon">⌕</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Filtrar por nome..."/></div></div>
+      {lista.length===0
+        ? <div className="card"><div className="empty-state"><div className="icon">📲</div><p>Nenhum cliente nesta lista</p></div></div>
+        : <div className="card">{lista.map(c=>(
+            <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
+              <div className="rank-avatar" style={{width:38,height:38,fontSize:13,flexShrink:0}}>{initials(c.name)}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:600,color:'var(--text)',fontSize:13}}>{c.name}</div>
+                <div style={{fontSize:11,color:'var(--subtext)'}}>
+                  {tab==='posVenda'&&('📅 Comprou há '+c.dias+' dia(s)')}
+                  {tab==='inativos'&&('⏱ Inativo há '+(c.dias>=999?'muito tempo':c.dias+' dias'))}
+                  {tab==='aniversariantes'&&('🎂 '+new Date(c.dataNasc).toLocaleDateString('pt-BR',{day:'2-digit',month:'long'}))}
+                </div>
+              </div>
+              <div style={{fontSize:11,color:'var(--subtext)',fontFamily:'DM Mono,monospace',flexShrink:0}}>{c.phone}</div>
+              <button className="btn btn-sm btn-success" onClick={()=>enviar(c.phone,tab==='posVenda'?msgPos(c):tab==='aniversariantes'?msgAniv(c):msgInativo(c))}>📲 Enviar</button>
+            </div>
+          ))}</div>
+      }
+    </div>
+  );
+}
+
 // ===== TAMANHOS =====
 function TamanhosConfig() {
   const { tamanhos, setTamanhos, deleteTamanho, addToast } = useContext(AppContext);
