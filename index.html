@@ -1531,46 +1531,38 @@ function Dashboard() {
           <div className="chart-wrap"><canvas ref={chartRef}/></div>
         </div>
         <div className="card">
-          <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,marginBottom:14,color:'var(--text)'}}>METAS DO MÊS</div>
+          <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,marginBottom:16,color:'var(--text)'}}>METAS DO MÊS</div>
           {sellers.filter(s=>s.role==='seller'&&s.active).map(s=>{
             const goal=goals.find(g=>g.sellerId===s.id&&g.month===m&&g.year===y);
-            const sold=monthSales.filter(x=>x.sellerId===s.id).reduce((a,x)=>a+x.total,0);
-            const pct=goal?Math.min((sold/goal.goal)*100,100):0;
-            const soldSemana=monthSales.filter(x=>x.sellerId===s.id&&new Date(x.date)>=inicioSemana).reduce((a,x)=>a+x.total,0);
-            const goalSem=goal?(goal.goal/4):0;
-            const pctSem=goalSem>0?Math.min((soldSemana/goalSem)*100,100):0;
+            const sold=monthSales.filter(x=>x.sellerId===s.id&&x.status!=='cancelada').reduce((a,x)=>a+x.total,0);
+            const meta=goal?.goal||0;
+            const pct=meta>0?Math.min((sold/meta)*100,100):0;
+            const falta=Math.max(0,meta-sold);
             return (
-              <div key={s.id} style={{marginBottom:14}}>
-                <div className="flex items-center justify-between" style={{marginBottom:3}}>
-                  <div className="flex items-center gap-8">
-                    <div className="rank-avatar" style={{width:26,height:26,fontSize:10}}>{s.photo?<img src={s.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(s.name)}</div>
-                    <span style={{fontSize:12,color:'var(--text)'}}>{s.name}</span>
+              <div key={s.id} style={{marginBottom:18,padding:'14px 16px',background:'var(--bg3)',borderRadius:'var(--rl)',border:'1px solid var(--bg5)'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                  <div className="rank-avatar" style={{width:32,height:32,fontSize:11,flexShrink:0}}>{s.photo?<img src={s.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(s.name)}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'var(--text)'}}>{s.name}</div>
+                    {meta>0&&<div style={{fontSize:10,color:'var(--subtext)'}}>Meta: {fmtMoney(meta)}</div>}
                   </div>
-                  <div className="flex items-center gap-8">
-                    <span style={{fontSize:11,color:'var(--g3)'}}>{fmtMoney(sold)}</span>
-                    <span style={{fontSize:11,fontWeight:700,color:pct>=100?'var(--success)':pct>=70?'var(--warning)':'var(--danger)'}}>{pct.toFixed(0)}%</span>
+                  <div style={{textAlign:'right'}}>
+                    <div style={{fontFamily:'DM Mono,monospace',fontSize:14,fontWeight:700,color:'var(--text)'}}>{fmtMoney(sold)}</div>
+                    <div style={{fontSize:10,fontWeight:700,color:pct>=100?'var(--success)':pct>=70?'var(--warning)':'var(--danger)'}}>{meta>0?pct.toFixed(0)+'%':'sem meta'}</div>
                   </div>
                 </div>
-                <div className="progress-bar" style={{marginBottom:2}}><div className={`progress-fill ${pct>=100?'green':pct>=70?'yellow':'red'}`} style={{width:`${pct}%`}}/></div>
-                {goalSem>0&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:2}}>
-                  <span style={{fontSize:9,color:'var(--g2)'}}>Semana: {fmtMoney(soldSemana)} / {fmtMoney(goalSem)}</span>
-                  <span style={{fontSize:9,color:pctSem>=100?'var(--success)':pctSem>=70?'var(--warning)':'var(--danger)'}}>{pctSem.toFixed(0)}%</span>
-                </div>}
-                {goalSem>0&&<div className="progress-bar" style={{height:3}}><div className={`progress-fill ${pctSem>=100?'green':pctSem>=70?'yellow':'red'}`} style={{width:`${pctSem}%`}}/></div>}
+                {meta>0&&<>
+                  <div className="progress-bar" style={{height:6,marginBottom:6}}><div className={`progress-fill ${pct>=100?'green':pct>=70?'yellow':'red'}`} style={{width:`${pct}%`}}/></div>
+                  <div style={{fontSize:11,color:pct>=100?'var(--success)':'var(--subtext)'}}>
+                    {pct>=100?'✓ Meta batida!':'Falta '+fmtMoney(falta)+' para bater a meta'}
+                  </div>
+                </>}
               </div>
             );
           })}
+          {sellers.filter(s=>s.role==='seller'&&s.active).length===0&&<div className="empty-state" style={{padding:24}}><p>Nenhum vendedor ativo</p></div>}
         </div>
       </div>
-      {lowStock.length>0 && (
-        <div className="card">
-          <div className="flex items-center justify-between mb-16"><span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:2,color:'var(--text)'}}>ESTOQUE BAIXO</span><span className="badge badge-red">{lowStock.length}</span></div>
-          <div className="table-wrap"><table>
-            <thead><tr><th>Produto</th><th>Loja</th><th>Qtd</th></tr></thead>
-            <tbody>{lowStock.map(p=>(<tr key={p.id}><td style={{color:'var(--text)'}}>{p.description}</td><td><span className="badge badge-gray">{p.store}</span></td><td><span className="badge badge-red">{p.qty}</span></td></tr>))}</tbody>
-          </table></div>
-        </div>
-      )}
     </div>
   );
 }
@@ -2026,8 +2018,8 @@ function NewSale() {
           <div className="modal" style={{maxWidth:420}}>
             <div className="modal-header"><h3>DIVIDIR PAGAMENTO</h3><div className="close-btn" onClick={()=>setShowPayModal(false)}>✕</div></div>
             <div className="modal-body">
-              <div style={{padding:'10px 12px',background:'rgba(255,255,255,.05)',borderRadius:'var(--r)',marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontSize:12,color:'var(--g3)'}}>Total da venda</span>
+              <div style={{padding:'10px 14px',background:'var(--bg3)',borderRadius:'var(--r)',marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:12,color:'var(--subtext)'}}>Total da venda</span>
                 <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:22,color:'var(--text)'}}>{fmtMoney(total)}</span>
               </div>
               {payMethods.map((pm,i)=>{
@@ -2035,7 +2027,7 @@ function NewSale() {
                 const valorPago=Number(pm.received||0);
                 const trocoItem=isDinheiro&&valorPago>0?Math.max(0,valorPago-(Number(pm.value)||0)):0;
                 return (
-                  <div key={i} style={{marginBottom:10,padding:'12px',background:'var(--bg3)',borderRadius:'var(--r)',border:'1px solid var(--bg5)'}}>
+                  <div key={i} style={{marginBottom:10,padding:'12px',background:'var(--bg3)',borderRadius:'var(--rl)',border:'1px solid var(--bg5)'}}>
                     <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
                       <select value={pm.method} onChange={e=>updatePayMethod(i,'method',e.target.value)} style={{flex:1,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13}}>
                         <option>Dinheiro</option><option>Pix</option><option>Cartão</option><option>A prazo</option>
@@ -2043,26 +2035,26 @@ function NewSale() {
                       {payMethods.length>1&&<button className="btn-icon" onClick={()=>removePayMethod(i)} style={{color:'var(--danger)'}}>✕</button>}
                     </div>
                     <input type="number" step="0.01" min="0" value={pm.value} onChange={e=>updatePayMethod(i,'value',e.target.value)}
-                      placeholder="Valor nesta forma" style={{width:'100%',background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13,marginBottom:isDinheiro?8:0,boxSizing:'border-box'}}/>
-                    {pm.method==='A prazo'&&<input type="date" value={pm.dueDate||''} onChange={e=>updatePayMethod(i,'dueDate',e.target.value)} style={{width:'100%',background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13,marginBottom:isDinheiro?8:0,boxSizing:'border-box'}}/>}
-                    {isDinheiro&&<div style={{display:'flex',gap:8,alignItems:'center'}}>
+                      placeholder="Digite o valor..." style={{width:'100%',background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'9px 10px',color:'var(--text)',fontSize:14,fontFamily:'DM Mono,monospace',fontWeight:600,marginBottom:isDinheiro?8:0,boxSizing:'border-box'}}/>
+                    {pm.method==='A prazo'&&<input type="date" value={pm.dueDate||''} onChange={e=>updatePayMethod(i,'dueDate',e.target.value)} style={{width:'100%',background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13,marginTop:6,boxSizing:'border-box'}}/>}
+                    {isDinheiro&&Number(pm.value)>0&&<div style={{display:'flex',gap:8,alignItems:'center'}}>
                       <input type="number" step="0.01" min="0" value={pm.received||''} onChange={e=>updatePayMethod(i,'received',e.target.value)}
-                        placeholder="Valor recebido" style={{flex:1,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13}}/>
-                      {valorPago>0&&<div style={{padding:'6px 10px',borderRadius:'var(--r)',background:'rgba(68,255,136,.1)',border:'1px solid rgba(68,255,136,.3)',whiteSpace:'nowrap'}}>
-                        <span style={{fontSize:11,color:'var(--g3)'}}>Troco </span>
+                        placeholder="Valor recebido do cliente" style={{flex:1,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13}}/>
+                      {valorPago>0&&<div style={{padding:'6px 10px',borderRadius:'var(--r)',background:'rgba(61,214,140,.1)',border:'1px solid rgba(61,214,140,.3)',whiteSpace:'nowrap'}}>
+                        <span style={{fontSize:10,color:'var(--subtext)'}}>Troco </span>
                         <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--success)'}}>{fmtMoney(trocoItem)}</span>
                       </div>}
                     </div>}
                   </div>
                 );
               })}
-              {(()=>{const tp=payMethods.reduce((a,p)=>a+(Number(p.value)||0),0);const d=total-tp;return(
-                <div style={{padding:'8px 12px',borderRadius:'var(--r)',background:Math.abs(d)<0.01?'rgba(68,255,136,.08)':'rgba(255,204,0,.08)',border:`1px solid ${Math.abs(d)<0.01?'rgba(68,255,136,.3)':'rgba(255,204,0,.3)'}`,fontSize:12,display:'flex',justifyContent:'space-between',marginBottom:10}}>
-                  <span style={{color:'var(--g3)'}}>{Math.abs(d)<0.01?'✓ Valores conferem':'Restante a distribuir'}</span>
-                  <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:Math.abs(d)<0.01?'var(--success)':'var(--warning)'}}>{Math.abs(d)<0.01?'Tudo certo':fmtMoney(Math.abs(d))}</span>
+              {(()=>{const tp=payMethods.reduce((a,p)=>a+(Number(p.value)||0),0);const d=total-tp;const ok=Math.abs(d)<0.01;return(
+                <div style={{padding:'10px 14px',borderRadius:'var(--r)',background:ok?'rgba(61,214,140,.08)':'rgba(245,166,35,.08)',border:`1px solid ${ok?'rgba(61,214,140,.3)':'rgba(245,166,35,.3)'}`,fontSize:12,display:'flex',justifyContent:'space-between',marginBottom:10}}>
+                  <span style={{color:ok?'var(--success)':'var(--warning)'}}>{ok?'✓ Valores conferem':'Falta distribuir'}</span>
+                  <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:ok?'var(--success)':'var(--warning)'}}>{ok?'Tudo certo':fmtMoney(Math.abs(d))}</span>
                 </div>
               );})()}
-              <button className="btn btn-sm btn-outline" style={{width:'100%'}} onClick={addPayMethod}>+ Adicionar forma</button>
+              <button className="btn btn-sm btn-outline" style={{width:'100%'}} onClick={addPayMethod}>+ Adicionar forma de pagamento</button>
             </div>
             <div className="modal-footer"><button className="btn btn-white" onClick={()=>setShowPayModal(false)}>Confirmar</button></div>
           </div>
@@ -2173,7 +2165,14 @@ function NewSale() {
           )}
 
           <button type="button" style={{marginTop:10,width:'100%',padding:'9px',borderRadius:'var(--r)',border:'1px dashed var(--bg5)',background:'transparent',color:'var(--g3)',fontSize:12,cursor:'pointer',letterSpacing:1}}
-            onClick={()=>{if(payMethods.length===1){const cur=payMethods[0];setPayMethods([{...cur,value:total/2,received:'',dueDate:cur.dueDate||''},{method:'Pix',value:total/2,received:'',dueDate:''}]);}setShowPayModal(true);}}>
+            onClick={()=>{
+              // Sempre abre com campos vazios para o usuário digitar livremente
+              if(payMethods.length===1){
+                const cur=payMethods[0];
+                setPayMethods([{method:cur.method,value:'',received:'',dueDate:cur.dueDate||''},{method:'Pix',value:'',received:'',dueDate:''}]);
+              }
+              setShowPayModal(true);
+            }}>
             ÷ Dividir em múltiplas formas
           </button>
         </div>
@@ -2657,10 +2656,15 @@ function Receivables() {
   const abrirWhatsApp = (s) => {
     const cli = clients.find(c=>c.id===s.clientId||c.name===s.clientName);
     if(!cli?.phone) return addToast('Cliente sem telefone cadastrado','error');
-    const valor = fmtMoney(getValorPrazo(s));
+    const valorPrazo = getValorPrazo(s);
     const venc = getDueDate(s) ? fmtDate(getDueDate(s)) : 'a combinar';
-    const msg = `Olá ${s.clientName}! 😊 Passando para lembrar sobre sua compra de ${valor} realizada em ${fmtDate(s.date)}.\nVencimento: ${venc}.\nQualquer dúvida, estamos à disposição! 🛍️`;
+    const overdue = isOverdue(s);
+    const itens = (s.items||[]).map(i=>i.description+(i.qty>1?' ×'+i.qty:'')).join(', ');
+    const msg = overdue
+      ? `Olá ${s.clientName}! 🐾\n\nAqui é a equipe da *PIT IMPORT*.\n\nPassamos para avisar que sua compra de *${fmtMoney(valorPrazo)}* realizada em *${fmtDate(s.date)}* está com pagamento em atraso.\n\n📦 Itens: ${itens||'—'}\n📅 Vencimento: *${venc}*\n💰 Valor: *${fmtMoney(valorPrazo)}*\n\nPor favor, entre em contato para regularizar. Estamos à disposição para ajudar! 💪`
+      : `Olá ${s.clientName}! 🐾\n\nAqui é a equipe da *PIT IMPORT*.\n\nPassamos para lembrar sobre sua compra:\n\n📦 Itens: ${itens||'—'}\n📅 Data da compra: *${fmtDate(s.date)}*\n📋 Vencimento: *${venc}*\n💰 Valor: *${fmtMoney(valorPrazo)}*\n\nQualquer dúvida sobre o pagamento, é só chamar! 😊`;
     window.open(`https://wa.me/55${cli.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`,'_blank');
+    addToast('Abrindo WhatsApp...','info');
   };
 
   return (
@@ -3621,12 +3625,12 @@ function Rankings() {
               <div style={{flex:1}}>
                 <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{s.name}</div>
                 <div style={{fontSize:10,color:'var(--g3)',marginBottom:4}}>{s.store} · {s.monthCount} vendas este mês</div>
-                <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-                  <span style={{fontSize:10,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:6,padding:'2px 8px',color:'var(--g4)'}}>
-                    PA: <strong style={{color:'var(--text)'}}>{s.pa}</strong>
+                <div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:4}}>
+                  <span style={{fontSize:10,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:6,padding:'3px 10px',color:'var(--subtext)'}}>
+                    PA <span style={{color:'var(--text)',fontWeight:700}}>{s.pa}</span> <span style={{fontSize:9,color:'var(--subtext)'}}>peças/venda</span>
                   </span>
-                  <span style={{fontSize:10,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:6,padding:'2px 8px',color:'var(--g4)'}}>
-                    Ticket: <strong style={{color:'var(--text)',fontFamily:'DM Mono,monospace'}}>{fmtMoney(s.ticket)}</strong>
+                  <span style={{fontSize:10,background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:6,padding:'3px 10px',color:'var(--subtext)'}}>
+                    Ticket médio <span style={{color:'var(--text)',fontWeight:700,fontFamily:'DM Mono,monospace'}}>{fmtMoney(s.ticket)}</span>
                   </span>
                 </div>
                 {s.goal>0&&<div style={{marginTop:6}}>
@@ -3640,7 +3644,6 @@ function Rankings() {
               <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6}}>
                 <div style={{fontFamily:'DM Mono,monospace',fontSize:14,fontWeight:700,color:'var(--text)'}}>{fmtMoney(s.monthTotal)}</div>
                 <div style={{fontSize:10,color:'var(--subtext)'}}>Total: {fmtMoney(s.total)}</div>
-                {isAdmin&&<button className="btn btn-sm btn-outline" onClick={()=>{setEditGoal(s);setGoalVal(s.goal||'');}}>🎯 Meta</button>}
               </div>
             </div>
           ))}
@@ -3816,15 +3819,29 @@ function Returns() {
           <div className="modal-header"><h3>NOVA DEVOLUÇÃO</h3><div className="close-btn" onClick={()=>setModal(null)}>✕</div></div>
           <div className="modal-body">
             {step===1&&<>
-              <div className="form-field" style={{marginBottom:14}}><label>Selecionar Venda Original</label>
-                <select value={selSaleId} onChange={e=>{setSelSaleId(e.target.value);setSelItems([]);}}>
-                  <option value="">— Selecione uma venda —</option>
-                  {[...sales].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,50).map(s=>(
-                    <option key={s.id} value={s.id}>{fmtDate(s.date)} · {s.sellerName} · {fmtMoney(s.total)}</option>
-                  ))}
-                </select>
+              <div style={{fontSize:11,color:'var(--subtext)',marginBottom:12}}>Selecione a venda para fazer a devolução:</div>
+              <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:400,overflowY:'auto'}}>
+                {[...sales].filter(s=>s.status!=='cancelada').sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,60).map(s=>(
+                  <div key={s.id} onClick={()=>{setSelSaleId(s.id);setSelItems([]);}}
+                    style={{padding:'12px 14px',background:selSaleId===s.id?'rgba(245,166,35,.08)':'var(--bg3)',border:`1px solid ${selSaleId===s.id?'rgba(245,166,35,.5)':'var(--bg5)'}`,borderRadius:'var(--rl)',cursor:'pointer',transition:'var(--t)'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                      <div style={{fontWeight:700,color:'var(--text)',fontSize:13}}>{s.clientName||'Cliente não informado'}</div>
+                      <div style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--warning)',fontSize:13}}>{fmtMoney(s.total)}</div>
+                    </div>
+                    <div style={{display:'flex',gap:12,flexWrap:'wrap',fontSize:11,color:'var(--subtext)'}}>
+                      <span>📅 {fmtDate(s.date)}</span>
+                      <span>👤 {s.sellerName}</span>
+                      <span className="badge badge-gray" style={{fontSize:9}}>{s.store}</span>
+                      <span className={`badge ${s.paymentMethod==='A prazo'?'badge-yellow':'badge-green'}`} style={{fontSize:9}}>{s.paymentMethod}</span>
+                    </div>
+                    {(s.items||[]).length>0&&<div style={{marginTop:6,fontSize:11,color:'var(--subtext)'}}>
+                      🛍️ {(s.items||[]).map(i=>i.description+(i.qty>1?' ×'+i.qty:'')).join(' · ')}
+                    </div>}
+                  </div>
+                ))}
               </div>
               {selSaleId&&<>
+                <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:13,letterSpacing:2,marginTop:14,marginBottom:8,color:'var(--subtext)'}}>ITENS DA VENDA — SELECIONE O QUE SERÁ DEVOLVIDO</div>
                 <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:13,letterSpacing:2,marginBottom:8,color:'var(--g3)'}}>SELECIONE OS ITENS A DEVOLVER</div>
                 {saleItems.map(item=>(
                   <div key={item.productId} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:'var(--bg3)',borderRadius:'var(--r)',marginBottom:6,border:`1px solid ${selItems.find(i=>i.productId===item.productId)?'var(--warning)':'var(--bg5)'}`}}>
@@ -4765,13 +4782,15 @@ function WhatsApp() {
   };
 
   const msgPosVenda = (c) =>
-    `Olá ${c.name}! 😊 Aqui é da equipe da loja. Como foi sua experiência com a sua compra? Esperamos que tenha adorado tudo! Qualquer dúvida, estamos à disposição. Até a próxima! 🛍️`;
+    `Olá ${c.name}! 🐾\n\nAqui é a equipe da *PIT IMPORT*!\n\nPassamos para saber como foi sua experiência com sua compra. Esperamos que você tenha amado tudo! 😍\n\nQualquer dúvida sobre o produto, troca ou tamanho, é só falar com a gente. Estamos sempre aqui pra te atender! 💪\n\nObrigado pela confiança na Pit Import! 🛍️`;
 
   const msgAniversario = (c) =>
-    `🎂 Feliz Aniversário, ${c.name}! A equipe da loja deseja um dia incrível cheio de alegrias! 🎉 Aproveite nosso presente especial: desconto exclusivo em sua próxima compra. Te esperamos!`;
+    `🎂 *Feliz Aniversário, ${c.name}!* 🎉\n\nA equipe da *PIT IMPORT* deseja um dia incrível, repleto de alegrias e conquistas! 🐾💛\n\nPara comemorar essa data especial com você, preparamos uma *surpresa exclusiva*: venha à loja e garanta seu desconto de aniversário!\n\nTe esperamos! 🛍️`;
 
-  const msgInativo = (c) =>
-    `Oi ${c.name}! Sentimos sua falta! 🥺 Faz um tempo que não te vemos por aqui. Temos novidades incríveis te esperando! Venha nos visitar ou fale com a gente. 🛍️`;
+  const msgInativo = (c) => {
+    const diasStr = c.diasSemCompra >= 999 ? 'um tempão' : `${c.diasSemCompra} dias`;
+    return `Ei, ${c.name}! Tudo bem? 🐾\n\nFaz ${diasStr} que você não aparece por aqui, e a gente sentiu falta! 😢\n\nA *PIT IMPORT* chegou com novidades incríveis: peças novas, estilos frescos e preços que você vai amar! 🔥\n\nVem dar uma passada na loja ou fala com a gente aqui mesmo. Vai ter novidade esperando por você! 💪`;
+  };
 
   const listas = { posVenda, aniversariantes, inativos };
   const labels = { posVenda:'Pós-venda (7 dias)', aniversariantes:'Aniversariantes', inativos:'Inativos (+60 dias)' };
