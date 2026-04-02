@@ -2409,7 +2409,7 @@ function Stock() {
   const [filterStore, setFilterStore] = useState('Todos');
   const [modal, setModal] = useState(null);
   const [editProduct, setEditProduct] = useState(null);
-  const [form, setForm] = useState({code:'',description:'',store:'Cosmos',qty:0,costPrice:0,salePrice:0,photo:null,temVariacao:false,tamanho:''});
+  const [form, setForm] = useState({code:'',description:'',store:'Cosmos',qty:0,costPrice:0,salePrice:0,photo:null,temVariacao:false,tamanho:'',modoMultiplo:false,variacoes:[{tamanho:'',qty:0}]});
   const [novoTamanhoInline, setNovoTamanhoInline] = useState('');
   const [novoTamanhoObs, setNovoTamanhoObs] = useState('');
   const [showNovoTamanho, setShowNovoTamanho] = useState(false);
@@ -2450,14 +2450,25 @@ function Stock() {
 
   const saveProduct = () => {
     if(!form.description) return addToast('Preencha a descrição','error');
-    const codigo = (form.code||'').trim() || gerarCodigo();
+    const codigoBase = (form.code||'').trim() || gerarCodigo();
     if(modal==='add'){
-      if(products.find(p=>p.code===codigo&&p.store===form.store)) return addToast('Código já existe nesta loja','error');
-      const newProd = {...form, code:codigo, id:'p'+Date.now(), qty:Number(form.qty), costPrice:Number(form.costPrice), salePrice:Number(form.salePrice)};
-      setProducts(ps=>[...ps, newProd]);
-      addToast('Produto cadastrado! Código: '+codigo,'success');
+      if(form.modoMultiplo && form.variacoes && form.variacoes.some(v=>v.tamanho)) {
+        const vars = form.variacoes.filter(v=>v.tamanho.trim());
+        if(!vars.length) return addToast('Adicione pelo menos um tamanho','error');
+        const novos = vars.map((v,i)=>{
+          const cod = codigoBase+'-'+v.tamanho.toUpperCase().replace(/\s+/g,'');
+          return {...form,id:'p'+Date.now()+i,code:cod,codigoBase,tamanho:v.tamanho,qty:Number(v.qty)||0,costPrice:Number(form.costPrice),salePrice:Number(form.salePrice),modoMultiplo:undefined,variacoes:undefined};
+        });
+        setProducts(ps=>[...ps,...novos]);
+        addToast(vars.length+' variações cadastradas! Base: '+codigoBase,'success');
+      } else {
+        if(products.find(p=>p.code===codigoBase&&p.store===form.store)) return addToast('Código já existe nesta loja','error');
+        const newProd = {...form,code:codigoBase,id:'p'+Date.now(),qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice),modoMultiplo:undefined,variacoes:undefined};
+        setProducts(ps=>[...ps,newProd]);
+        addToast('Produto cadastrado! Código: '+codigoBase,'success');
+      }
     } else {
-      setProducts(ps=>ps.map(p=>p.id===editProduct.id ? {...form,code:codigo,id:p.id,qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice)} : p));
+      setProducts(ps=>ps.map(p=>p.id===editProduct.id?{...form,code:codigoBase,id:p.id,qty:Number(form.qty),costPrice:Number(form.costPrice),salePrice:Number(form.salePrice),modoMultiplo:undefined,variacoes:undefined}:p));
       addToast('Produto atualizado!','success');
     }
     setModal(null);
@@ -2591,25 +2602,27 @@ function Stock() {
             {/* VARIAÇÃO */}
             <div className="form-row">
               <div className="form-field">
-                <label>Tipo de Tamanho</label>
-                <div style={{display:'flex',gap:8,marginBottom:8}}>
-                  <button type="button" onClick={()=>setForm(f=>({...f,temVariacao:false,tamanho:''}))}
-                    className={`btn btn-sm ${!form.temVariacao?'btn-white':'btn-outline'}`}>Tamanho Único</button>
-                  <button type="button" onClick={()=>setForm(f=>({...f,temVariacao:true}))}
-                    className={`btn btn-sm ${form.temVariacao?'btn-white':'btn-outline'}`}>Com Variação</button>
+                <label>Tamanhos</label>
+                <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+                  <button type="button" onClick={()=>setForm(f=>({...f,temVariacao:false,tamanho:'',modoMultiplo:false}))}
+                    className={'btn btn-sm '+(!form.temVariacao&&!form.modoMultiplo?'btn-white':'btn-outline')}>Sem tamanho</button>
+                  <button type="button" onClick={()=>setForm(f=>({...f,temVariacao:true,modoMultiplo:false}))}
+                    className={'btn btn-sm '+(form.temVariacao&&!form.modoMultiplo?'btn-white':'btn-outline')}>Um tamanho</button>
+                  <button type="button" onClick={()=>setForm(f=>({...f,temVariacao:false,modoMultiplo:true,variacoes:tamanhos.length?tamanhos.map(t=>({tamanho:t.nome,qty:0})):[{tamanho:'P',qty:0},{tamanho:'M',qty:0},{tamanho:'G',qty:0}]}))}
+                    className={'btn btn-sm '+(form.modoMultiplo?'btn-white':'btn-outline')}>Vários tamanhos</button>
                 </div>
-                {form.temVariacao && (
+                {form.temVariacao&&!form.modoMultiplo&&(
                   <div>
                     <select value={form.tamanho} onChange={e=>{ if(e.target.value==='__novo__'){setShowNovoTamanho(true);}else{setForm(f=>({...f,tamanho:e.target.value}));} }}
                       style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',color:'var(--text)',fontSize:13,width:'100%'}}>
                       <option value="">Selecionar tamanho...</option>
-                      {tamanhos.map(t=><option key={t.id} value={t.nome}>{t.nome}{t.obs?` (${t.obs})`:''}</option>)}
-                      <option value="__novo__">➕ Cadastrar novo tamanho...</option>
+                      {tamanhos.map(t=><option key={t.id} value={t.nome}>{t.nome}{t.obs?' ('+t.obs+')':''}</option>)}
+                      <option value="__novo__">+ Cadastrar novo tamanho...</option>
                     </select>
-                    {form.tamanho && <div style={{marginTop:6,fontSize:11,color:'var(--success)'}}>✓ Tamanho: <strong>{form.tamanho}</strong></div>}
-                    {showNovoTamanho && (
+                    {form.tamanho&&<div style={{marginTop:6,fontSize:11,color:'var(--success)'}}>Tamanho: {form.tamanho}</div>}
+                    {showNovoTamanho&&(
                       <div style={{marginTop:8,padding:12,background:'var(--bg3)',borderRadius:'var(--r)',border:'1px solid var(--bg5)'}}>
-                        <div style={{fontSize:10,letterSpacing:1,textTransform:'uppercase',color:'var(--g3)',marginBottom:8}}>Novo Tamanho</div>
+                        <div style={{fontSize:10,letterSpacing:1,color:'var(--g3)',marginBottom:8}}>NOVO TAMANHO</div>
                         <div style={{display:'flex',gap:6,marginBottom:6}}>
                           <input value={novoTamanhoInline} onChange={e=>setNovoTamanhoInline(e.target.value.toUpperCase())} placeholder="Ex: 2XG" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 8px',color:'var(--text)',fontSize:13,flex:1}}/>
                           <input value={novoTamanhoObs} onChange={e=>setNovoTamanhoObs(e.target.value)} placeholder="Obs (opcional)" style={{background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 8px',color:'var(--text)',fontSize:13,flex:1}}/>
@@ -2622,14 +2635,36 @@ function Stock() {
                     )}
                   </div>
                 )}
+                {form.modoMultiplo&&(
+                  <div>
+                    <div style={{fontSize:11,color:'var(--subtext)',marginBottom:10}}>Digite a quantidade de cada tamanho (deixe 0 para não cadastrar):</div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+                      {(form.variacoes||[]).map((v,i)=>(
+                        <div key={i} style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'8px 10px',textAlign:'center'}}>
+                          <div style={{fontWeight:700,color:'var(--text)',fontSize:12,marginBottom:6}}>{v.tamanho}</div>
+                          <input type="number" min="0" value={v.qty}
+                            onChange={e=>{const nv=(form.variacoes||[]).map((x,j)=>j===i?{...x,qty:e.target.value}:x);setForm(f=>({...f,variacoes:nv}));}}
+                            style={{width:'100%',background:'var(--bg4)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 4px',color:'var(--text)',fontSize:14,fontWeight:700,textAlign:'center',boxSizing:'border-box'}}/>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{marginTop:8,fontSize:11,color:'var(--success)'}}>
+                      Total: {(form.variacoes||[]).reduce((a,v)=>a+(Number(v.qty)||0),0)} unidades em {(form.variacoes||[]).filter(v=>Number(v.qty)>0).length} tamanho(s)
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="form-row cols-3">
+            {!form.modoMultiplo&&<div className="form-row cols-3">
               <div className="form-field"><label>Quantidade</label><input type="number" value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))}/></div>
               <div className="form-field"><label>Compra (R$)</label><input type="number" step="0.01" value={form.costPrice} onChange={e=>setForm(f=>({...f,costPrice:e.target.value}))}/></div>
               <div className="form-field"><label>Venda (R$)</label><input type="number" step="0.01" value={form.salePrice} onChange={e=>setForm(f=>({...f,salePrice:e.target.value}))}/></div>
-            </div>
+            </div>}
+            {form.modoMultiplo&&<div className="form-row cols-2">
+              <div className="form-field"><label>Compra (R$)</label><input type="number" step="0.01" value={form.costPrice} onChange={e=>setForm(f=>({...f,costPrice:e.target.value}))}/></div>
+              <div className="form-field"><label>Venda (R$)</label><input type="number" step="0.01" value={form.salePrice} onChange={e=>setForm(f=>({...f,salePrice:e.target.value}))}/></div>
+            </div>}
           </div>
           <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setModal(null)}>Cancelar</button><button className="btn btn-white" onClick={saveProduct}>Salvar</button></div>
         </div></div>
