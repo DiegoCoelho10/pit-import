@@ -575,19 +575,19 @@ function AppProvider({ children }) {
     });
   }, [saveCancelamento]);
 
-  // Fidelidade: configuração global de pontos
-  const [fidelidadeConfig, setFidelidadeConfigRaw] = useState({ativo:false, pontosPorReal:1, pontosParaResgate:100, valorResgate:10});
-  const { saveDoc: saveFidConfig } = useFirestore('config', (data)=>{
-    const cfg = data.find(d=>d.id==='fidelidade');
-    if(cfg) setFidelidadeConfigRaw({...cfg});
+  // Fidelidade: configuração global de pontos (localStorage para evitar loop Firebase)
+  const [fidelidadeConfig, setFidelidadeConfigRaw] = useState(()=>{
+    try { const s=localStorage.getItem('pit_fidelidade'); return s?JSON.parse(s):{ativo:false,pontosPorReal:1,pontosParaResgate:100,valorResgate:10}; } catch(e){return {ativo:false,pontosPorReal:1,pontosParaResgate:100,valorResgate:10};}
   });
   const setFidelidadeConfig = useCallback((updOrFn)=>{
     setFidelidadeConfigRaw(prev=>{
       const next = typeof updOrFn==='function'?updOrFn(prev):updOrFn;
-      if(FIREBASE_CONFIGURED&&db) saveFidConfig('fidelidade',{...next,id:'fidelidade'});
+      try { localStorage.setItem('pit_fidelidade', JSON.stringify(next)); } catch(e){}
       return next;
     });
-  },[saveFidConfig]);
+  },[]);
+
+  const updateCurrentUser = useCallback((updatedSellers) => {
     setSellers(updatedSellers);
     setCurrentUser(prev => prev ? updatedSellers.find(s => s.id === prev.id) || prev : prev);
   }, [setSellers]);
