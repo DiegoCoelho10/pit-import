@@ -1386,6 +1386,7 @@ function SellerHome() {
                 <div style={{fontSize:10,color:'#555',marginTop:2}}>{fmtMoney(vendasSemana)} desta semana</div>
               </div>
             )}
+          </div>
           <div style={{background:'rgba(255,255,255,.04)',border:'1px solid rgba(255,255,255,.06)',borderRadius:'var(--rl)',padding:16,textAlign:'center',minWidth:120}}>
             <div style={{fontSize:10,letterSpacing:2,color:'#444',textTransform:'uppercase'}}>Ranking</div>
             <div style={{fontSize:40,lineHeight:1.1,marginTop:4}}>{rankEmoji}</div>
@@ -1620,13 +1621,12 @@ function NewSale() {
   const searchRef = useRef();
 
   // Busca de produtos: agrupa variações pelo codigoBase
-  const filteredProds = search.length>=1 ? (() => {
+  const buildFiltradosVenda = () => {
     const matches = products.filter(p=>
       p.code.toLowerCase().includes(search.toLowerCase()) ||
       p.description.toLowerCase().includes(search.toLowerCase()) ||
       (p.codigoBase||'').toLowerCase().includes(search.toLowerCase())
     );
-    // Agrupar por codigoBase quando temVariacaoMultipla
     const grupos = {};
     const avulsos = [];
     matches.forEach(p => {
@@ -1637,14 +1637,14 @@ function NewSale() {
         avulsos.push(p);
       }
     });
-    // Produto agrupado: um item especial com variações
     const grupados = Object.values(grupos).map(vars => ({
       ...vars[0],
       _isGrupo: true,
       _variacoes: vars.sort((a,b)=>(a.tamanho||'').localeCompare(b.tamanho||'')),
     }));
     return [...avulsos, ...grupados].slice(0,12);
-  })() : [];
+  };
+  const filteredProds = search.length>=1 ? buildFiltradosVenda() : [];
 
   // qtd reservada de um produto
   const qtdReservada = (prodId) => reservas.filter(r=>r.produtoId===prodId&&r.ativa).reduce((a,r)=>a+r.qty,0);
