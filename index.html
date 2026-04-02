@@ -2102,12 +2102,18 @@ function NewSale() {
                   </div>
                 );
               })}
-              {(()=>{const tp=payMethods.reduce((a,p)=>a+(Number(p.value)||0),0);const d=total-tp;const ok=Math.abs(d)<0.01;const excede=d<-0.01;return(
-                <div style={{padding:'10px 14px',borderRadius:'var(--r)',background:ok?'rgba(61,214,140,.08)':excede?'rgba(240,64,64,.08)':'rgba(245,166,35,.08)',border:`1px solid ${ok?'rgba(61,214,140,.3)':excede?'rgba(240,64,64,.3)':'rgba(245,166,35,.3)'}`,fontSize:12,display:'flex',justifyContent:'space-between',marginBottom:10}}>
-                  <span style={{color:ok?'var(--success)':excede?'var(--danger)':'var(--warning)'}}>{ok?'✓ Valores conferem':excede?'⚠ Valor excede em':'Falta distribuir'}</span>
-                  <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:ok?'var(--success)':excede?'var(--danger)':'var(--warning)'}}>{ok?'Tudo certo':fmtMoney(Math.abs(d))}</span>
-                </div>
-              );})()}
+              {React.createElement(()=>{
+                const tp=payMethods.reduce((a,p)=>a+(Number(p.value)||0),0);
+                const d=total-tp;
+                const ok=Math.abs(d)<0.01;
+                const excede=d<-0.01;
+                return(
+                  <div style={{padding:'10px 14px',borderRadius:'var(--r)',background:ok?'rgba(61,214,140,.08)':excede?'rgba(240,64,64,.08)':'rgba(245,166,35,.08)',border:`1px solid ${ok?'rgba(61,214,140,.3)':excede?'rgba(240,64,64,.3)':'rgba(245,166,35,.3)'}`,fontSize:12,display:'flex',justifyContent:'space-between',marginBottom:10}}>
+                    <span style={{color:ok?'var(--success)':excede?'var(--danger)':'var(--warning)'}}>{ok?'✓ Valores conferem':excede?'⚠ Valor excede em':'Falta distribuir'}</span>
+                    <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:ok?'var(--success)':excede?'var(--danger)':'var(--warning)'}}>{ok?'Tudo certo':fmtMoney(Math.abs(d))}</span>
+                  </div>
+                );
+              }, null)}
               <button className="btn btn-sm btn-outline" style={{width:'100%'}} onClick={addPayMethod}>+ Adicionar forma de pagamento</button>
             </div>
             <div className="modal-footer"><button className="btn btn-white" onClick={()=>setShowPayModal(false)}>Confirmar</button></div>
@@ -2169,7 +2175,7 @@ function NewSale() {
                   </button>
                 ))}
               </div>
-              {Number(payMethods[0].received)>0&&(()=>{
+              {Number(payMethods[0].received)>0&&React.createElement(()=>{
                 const troco=Math.max(0,Number(payMethods[0].received)-total);
                 return (
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',
@@ -2179,7 +2185,7 @@ function NewSale() {
                     <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,fontSize:20,color:troco>0?'var(--success)':'var(--g3)'}}>{troco>0?fmtMoney(troco):'—'}</span>
                   </div>
                 );
-              })()}
+              }, null)}
             </div>
           )}
 
@@ -3551,7 +3557,7 @@ function Clients() {
                           </div>
                         </div>
                         {/* Resumo ano */}
-                        {(()=>{
+                        {React.createElement(()=>{
                           const anoSales = getClientSales(c.id).filter(s=>new Date(s.date).getFullYear()===histAno);
                           const anoTotal = anoSales.reduce((a,s)=>a+s.total,0);
                           const anoItens = anoSales.reduce((a,s)=>a+(s.items||[]).reduce((b,i)=>b+i.qty,0),0);
@@ -3571,7 +3577,7 @@ function Clients() {
                               ))}
                             </div>
                           ):null;
-                        })()}
+                        }, null)}
                         {/* Meses */}
                         {hist.length===0
                           ? <div style={{padding:'24px 0',textAlign:'center',color:'var(--subtext)',fontSize:13}}>Nenhuma compra em {histAno}</div>
@@ -4678,16 +4684,16 @@ function Reservas() {
                             <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:8}}>Cliente</div>
                             <div style={{padding:'12px 14px',background:'var(--bg4)',borderRadius:'var(--r)'}}>
                               <div style={{fontWeight:700,fontSize:15,color:'var(--text)',marginBottom:6}}>{r.clienteNome}</div>
-                              {(()=>{
-                                const cli = clients?.find(cl=>cl.name===r.clienteNome||cl.id===r.clienteId);
+                              {React.createElement(()=>{
+                                const cli = clients&&clients.find(cl=>cl.name===r.clienteNome||cl.id===r.clienteId);
                                 if(!cli) return <div style={{fontSize:11,color:'var(--g3)'}}>Cliente não cadastrado no sistema</div>;
-                                return <>
+                                return <React.Fragment>
                                   {cli.phone&&<div style={{fontSize:12,color:'var(--g3)',marginBottom:3}}>📞 {cli.phone}</div>}
                                   {cli.cpf&&<div style={{fontSize:12,color:'var(--g3)',marginBottom:3}}>CPF: {cli.cpf}</div>}
                                   {(cli.rua||cli.bairro)&&<div style={{fontSize:12,color:'var(--g3)',marginBottom:3}}>📍 {[cli.rua,cli.numero,cli.bairro].filter(Boolean).join(', ')}</div>}
                                   {cli.email&&<div style={{fontSize:12,color:'var(--g3)'}}>✉ {cli.email}</div>}
-                                </>;
-                              })()}
+                                </React.Fragment>;
+                              }, null)}
                             </div>
                             <div style={{marginTop:8,padding:'10px 14px',background:r.tipoEntrega==='entregar'?'rgba(68,170,255,.06)':'rgba(68,255,136,.06)',border:`1px solid ${r.tipoEntrega==='entregar'?'rgba(68,170,255,.2)':'rgba(68,255,136,.2)'}`,borderRadius:'var(--r)'}}>
                               <div style={{fontWeight:700,fontSize:13,color:r.tipoEntrega==='entregar'?'var(--info)':'var(--success)'}}>
