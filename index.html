@@ -13,7 +13,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -373,7 +373,7 @@ function ImgDropzone({ value, onChange }) {
   return (
     <div
       className={`img-dropzone ${drag ? 'drag-over' : ''}`}
-      onClick={() => ref.current?.click()}
+      onClick={() => ref.current&&ref.current.click()}
       onDragOver={e => { e.preventDefault(); setDrag(true); }}
       onDragLeave={() => setDrag(false)}
       onDrop={e => { e.preventDefault(); setDrag(false); process(e.dataTransfer.files[0]); }}
@@ -883,7 +883,7 @@ function Login() {
           <div className="field-group"><label>Usuário</label><input className="field-input" value={user} onChange={e=>setUser(e.target.value)} placeholder="Nome ou ID" onKeyDown={e=>e.key==='Enter'&&login()} autoFocus/></div>
           <div className="field-group"><label>Senha</label><input className="field-input" type="password" value={pass} onChange={e=>{setPass(e.target.value);setErr('')}} placeholder="••••••••" onKeyDown={e=>e.key==='Enter'&&login()}/></div>
           {err && <p className="login-error">⚠ {err}</p>}
-          <button className="btn-primary" onClick={login} disabled={loading} style={{opacity:loading?.7:1}}>{loading?'ENTRANDO...':'ENTRAR'}</button>
+          <button className="btn-primary" onClick={login} disabled={loading} style={{opacity:loading?0.7:1}}>{loading?'ENTRANDO...':'ENTRAR'}</button>
         </div>
         <div style={{marginTop:12,display:'flex',justifyContent:'center'}}>
           <button style={{background:'none',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'6px 14px',color:'var(--g3)',fontSize:11,cursor:'pointer'}} onClick={()=>setDevice(null)}>⇄ Trocar dispositivo</button>
@@ -1012,7 +1012,7 @@ function ResetModal({ onClose }) {
               </div>
               <div className="modal-footer" style={{padding:'14px 0 0',border:'none'}}>
                 <button className="btn btn-outline" onClick={()=>setStep(1)}>← Voltar</button>
-                <button className="btn btn-danger" disabled={qtdSelecionadas===0} style={{opacity:qtdSelecionadas===0?.5:1}} onClick={()=>setStep(3)}>Próximo →</button>
+                <button className="btn btn-danger" disabled={qtdSelecionadas===0} style={{opacity:qtdSelecionadas===0?0.5:1}} onClick={()=>setStep(3)}>Próximo →</button>
               </div>
             </>
           )}
@@ -1032,7 +1032,7 @@ function ResetModal({ onClose }) {
               </div>
               <div className="modal-footer" style={{padding:'14px 0 0',border:'none'}}>
                 <button className="btn btn-outline" onClick={()=>setStep(2)}>← Voltar</button>
-                <button className="btn btn-danger" disabled={confirmText!=='RESETAR'} style={{opacity:confirmText==='RESETAR'?1:.4}} onClick={executarReset}>
+                <button className="btn btn-danger" disabled={confirmText!=='RESETAR'} style={{opacity:confirmText==='RESETAR'?1:0.4}} onClick={executarReset}>
                   🗑 RESETAR AGORA
                 </button>
               </div>
@@ -1140,9 +1140,9 @@ function MainApp() {
       return;
     }
     if(!document.fullscreenElement) {
-      (el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen)?.call(el);
+      (el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen)&&(el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen).call(el);
     } else {
-      (document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen||document.msExitFullscreen)?.call(document);
+      (document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen||document.msExitFullscreen)&&(document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen||document.msExitFullscreen).call(document);
     }
   };
   const menu = currentUser.role==='admin' ? ADMIN_MENU : SELLER_MENU;
@@ -1197,7 +1197,7 @@ function MainApp() {
           </nav>
           <div className="sidebar-footer">
             <div className="user-card">
-              <div className="user-avatar" onClick={()=>fileRef.current?.click()}>
+              <div className="user-avatar" onClick={()=>fileRef.current&&fileRef.current.click()}>
                 {currentUser.photo?<img src={currentUser.photo} alt=""/>:<span>{initials(currentUser.name)}</span>}
                 <div className="user-avatar-overlay">📷</div>
               </div>
@@ -1227,10 +1227,10 @@ function MainApp() {
       )}
       <div className="main-content">
         <div className="mobile-header">
-          <div className="user-avatar" style={{width:34,height:34,fontSize:13,cursor:'pointer'}} onClick={()=>fileRef.current?.click()}>
+          <div className="user-avatar" style={{width:34,height:34,fontSize:13,cursor:'pointer'}} onClick={()=>fileRef.current&&fileRef.current.click()}>
             {currentUser.photo?<img src={currentUser.photo} alt=""/>:initials(currentUser.name)}
           </div>
-          <h2>{cur?.label}</h2>
+          <h2>{(cur&&cur.label)}</h2>
           <div style={{marginLeft:'auto',display:'flex',gap:8,alignItems:'center'}}>
             <div className={`firebase-dot ${firebaseStatus.connected?'connected':''}`}/>
             <button className="theme-toggle" onClick={()=>setShowPassModal(true)} title="Alterar Senha">🔑</button>
@@ -1240,7 +1240,7 @@ function MainApp() {
           </div>
         </div>
         <div className="top-bar">
-          <h2>{cur?.label}</h2>
+          <h2>{(cur&&cur.label)}</h2>
           <div className="top-bar-right">
             <div className="firebase-status">
               <div className={`firebase-dot ${firebaseStatus.connected?'connected':''}`}/>
@@ -1336,7 +1336,7 @@ function SellerHome() {
     last7.push({label:d.toLocaleDateString('pt-BR',{weekday:'short'}),value:t});
   }
   // ITEM 6: meta semanal
-  const goalMensal = goal?.goal || 0;
+  const goalMensal = (goal&&goal.goal) || 0;
   const semanaAtual = Math.ceil(new Date().getDate() / 7);
   const totalSemanas = 4;
   const goalSemanal = goalMensal / totalSemanas;
@@ -1397,7 +1397,7 @@ function SellerHome() {
       </div>
       <div className="grid-2 mb-24">
         <div className="stat-card green"><div className="stat-label">Hoje</div><div className="stat-value">{fmtMoney(mySales.filter(s=>s.date.slice(0,10)===new Date().toISOString().slice(0,10)).reduce((a,s)=>a+s.total,0))}</div><div className="stat-icon">📅</div></div>
-        <div className="stat-card yellow"><div className="stat-label">Falta para Meta</div><div className="stat-value">{fmtMoney(Math.max(0,(goal?.goal||0)-myTotal))}</div><div className="stat-icon">🏆</div></div>
+        <div className="stat-card yellow"><div className="stat-label">Falta para Meta</div><div className="stat-value">{fmtMoney(Math.max(0,((goal&&goal.goal)||0)-myTotal))}</div><div className="stat-icon">🏆</div></div>
       </div>
       <div className="grid-2">
         <div className="card">
@@ -1488,7 +1488,7 @@ function Dashboard() {
   const semanaAtual = Math.ceil(new Date().getDate() / 7);
   const inicioSemana = new Date(); inicioSemana.setDate(inicioSemana.getDate() - inicioSemana.getDay());
   const vendasSemanaTotal = monthSales.filter(s=>new Date(s.date)>=inicioSemana).reduce((a,s)=>a+s.total,0);
-  const goalTotalMes = sellers.filter(s=>s.role==='seller'&&s.active).reduce((a,s)=>{const g=goals.find(gg=>gg.sellerId===s.id&&gg.month===m&&gg.year===y);return a+(g?.goal||0);},0);
+  const goalTotalMes = sellers.filter(s=>s.role==='seller'&&s.active).reduce((a,s)=>{const g=goals.find(gg=>gg.sellerId===s.id&&gg.month===m&&gg.year===y);return a+((g&&g.goal)||0);},0);
   const goalSemanalTotal = goalTotalMes/4;
   const pctSemanalTotal = goalSemanalTotal>0?Math.min((vendasSemanaTotal/goalSemanalTotal)*100,100):0;
 
@@ -1510,7 +1510,7 @@ function Dashboard() {
           {sellers.filter(s=>s.role==='seller'&&s.active).map(s=>{
             const goal=goals.find(g=>g.sellerId===s.id&&g.month===m&&g.year===y);
             const sold=monthSales.filter(x=>x.sellerId===s.id&&x.status!=='cancelada').reduce((a,x)=>a+x.total,0);
-            const meta=goal?.goal||0;
+            const meta=(goal&&goal.goal)||0;
             const pct=meta>0?Math.min((sold/meta)*100,100):0;
             const falta=Math.max(0,meta-sold);
             return (
@@ -1551,7 +1551,7 @@ function SalesMonth() {
     const total=ss.reduce((a,x)=>a+x.total,0);
     const goal=goals.find(g=>g.sellerId===s.id&&g.month===m&&g.year===y);
     const pct=goal?Math.min((total/goal.goal)*100,100):0;
-    return {...s,total,count:ss.length,goal:goal?.goal||0,pct};
+    return {...s,total,count:ss.length,goal:(goal&&goal.goal)||0,pct};
   }).sort((a,b)=>b.total-a.total);
   return (
     <div>
@@ -1664,7 +1664,7 @@ function NewSale() {
       if(ex) return it.map(i=>i.productId===prod.id?{...i,qty:i.qty+1,total:(i.qty+1)*i.unitPrice}:i);
       return [...it,{productId:prod.id,code:prod.code,description:prod.description,photo:prod.photo||null,qty:1,unitPrice:prod.salePrice,total:prod.salePrice}];
     });
-    setSearch(''); setShowAuto(false); searchRef.current?.focus();
+    setSearch(''); setShowAuto(false); searchRef.current&&searchRef.current.focus();
   };
 
   const confirmarReserva = () => {
@@ -1736,12 +1736,12 @@ function NewSale() {
     if(hasAPrazo && !clientName) return addToast('Informe o nome do cliente para venda a prazo','error');
     for(const item of items){
       const prod=products.find(p=>p.id===item.productId);
-      if(!prod||prod.qty<item.qty) return addToast('Estoque insuficiente: '+(prod?.description||'?'),'error');
+      if(!prod||prod.qty<item.qty) return addToast('Estoque insuficiente: '+((prod&&prod.description)||'?'),'error');
       const disp = qtdDisponivel(prod);
       if(disp < item.qty) return addToast(`"${prod.description}" tem ${disp} disponível (restante está reservado)`,'error');
     }
     const seller=sellers.find(s=>s.id===selectedSeller);
-    const dueDateMain = payMethods.find(p=>p.method==='A prazo')?.dueDate || '';
+    const dueDateMain = (payMethods.find(p=>p.method==='A prazo')||{}).dueDate || '';
     const sale={
       id:'sale'+Date.now(), date:new Date().toISOString(),
       sellerId:selectedSeller, sellerName:seller.name,
@@ -1804,7 +1804,7 @@ function NewSale() {
               <span>TOTAL</span><span>{fmtMoney(lastSale.total)}</span>
             </div>
             <div style={{borderTop:'1px dashed #ccc',margin:'10px 0'}}/>
-            {lastSale.paymentMethods?.map((pm,i)=>(
+            {lastSale.paymentMethods&&lastSale.paymentMethods.map((pm,i)=>(
               <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}>
                 <span>{pm.method}</span><span>{fmtMoney(pm.value)}</span>
               </div>
@@ -1821,12 +1821,12 @@ function NewSale() {
               <button className="btn btn-white" style={{flex:1,background:'#111',color:'#fff',minWidth:100}} onClick={()=>window.print()}>🖨 Imprimir</button>
               <button className="btn btn-white" style={{flex:1,background:'#25D366',color:'#fff',minWidth:100}} onClick={()=>{
                 const itens = lastSale.items.map(it=>`• ${it.description.replace('  🔒reservado','')} ×${it.qty} — ${fmtMoney(it.total)}`).join('\n');
-                const pagto = lastSale.paymentMethods?.filter(p=>p.value>0).map(p=>`${p.method}: ${fmtMoney(p.value)}`).join(' + ') || lastSale.paymentMethod;
+                const pagto = lastSale.paymentMethods&&lastSale.paymentMethods.filter(p=>p.value>0).map(p=>`${p.method}: ${fmtMoney(p.value)}`).join(' + ') || lastSale.paymentMethod;
                 const troco = lastSale.troco>0 ? `\n💰 Troco: ${fmtMoney(lastSale.troco)}` : '';
                 const desc = lastSale.discountValue>0 ? `\n🏷️ Desconto: -${fmtMoney(lastSale.discountValue)}` : '';
                 const msg = `🐾 *PIT IMPORT*\n${lastSale.store} · ${new Date(lastSale.date).toLocaleString('pt-BR')}\nVendedor: ${lastSale.sellerName}${lastSale.clientName?'\nCliente: '+lastSale.clientName:''}\n\n${itens}${desc}\n\n*TOTAL: ${fmtMoney(lastSale.total)}*\n💳 ${pagto}${troco}\n\nObrigado pela preferência! 😊`;
-                const cli = clients?.find(c=>c.id===lastSale.clientId||c.name===lastSale.clientName);
-                if(cli?.phone) {
+                const cli = (clients&&clients.find)(c=>c.id===lastSale.clientId||c.name===lastSale.clientName);
+                if((cli&&cli.phone)) {
                   window.open(`https://wa.me/55${cli.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`,'_blank');
                 } else {
                   // sem telefone, abre WhatsApp genérico para escolher contato
@@ -1856,7 +1856,7 @@ function NewSale() {
             <div className="form-field">
               <label>Como o cliente vai receber?</label>
               <select value={reservarEntrega} onChange={e=>setReservarEntrega(e.target.value)} style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--r)',padding:'9px 11px',color:'var(--text)',fontSize:13,width:'100%'}}>
-                <option value="retirar">Retirar na loja {reservarModal?.store}</option>
+                <option value="retirar">Retirar na loja {(reservarModal&&reservarModal.store)}</option>
                 <option value="entregar">Entrega ao cliente</option>
               </select>
             </div>
@@ -1990,7 +1990,7 @@ function NewSale() {
                                     padding:'5px 10px',borderRadius:6,border:'1px solid',cursor:disp<=0&&naLoja?'not-allowed':'pointer',
                                     borderColor:disp<=0&&naLoja?'var(--bg5)':disp<=3&&naLoja?'rgba(245,166,35,.5)':'rgba(61,214,140,.4)',
                                     background:disp<=0&&naLoja?'var(--bg4)':'var(--bg3)',
-                                    opacity:disp<=0&&naLoja?.4:1,
+                                    opacity:disp<=0&&naLoja?0.4:1,
                                     display:'flex',flexDirection:'column',alignItems:'center',gap:1
                                   }}>
                                   <span style={{fontWeight:700,fontSize:12,color:disp<=0&&naLoja?'var(--g3)':'var(--text)'}}>{v.tamanho||'UN'}</span>
@@ -2010,7 +2010,7 @@ function NewSale() {
                     const reservado = qtdReservada(p.id);
                     return (
                       <div key={p.id} className={`autocomplete-item ${i===autoIdx?'active':''}`} onMouseDown={()=>addItem(p)}
-                        style={{display:'flex',alignItems:'center',gap:10,opacity:disp<=0&&naLoja?.5:1}}>
+                        style={{display:'flex',alignItems:'center',gap:10,opacity:disp<=0&&naLoja?0.5:1}}>
                         {p.photo
                           ? <img src={p.photo} style={{width:40,height:40,borderRadius:4,objectFit:'cover',flexShrink:0,border:'1px solid var(--bg5)'}} alt=""/>
                           : <div style={{width:40,height:40,borderRadius:4,background:'var(--bg5)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,opacity:.4}}>▦</div>
@@ -2102,18 +2102,12 @@ function NewSale() {
                   </div>
                 );
               })}
-              {React.createElement(()=>{
-                const tp=payMethods.reduce((a,p)=>a+(Number(p.value)||0),0);
-                const d=total-tp;
-                const ok=Math.abs(d)<0.01;
-                const excede=d<-0.01;
-                return(
+              {(()=>{const tp=payMethods.reduce((a,p)=>a+(Number(p.value)||0),0);const d=total-tp;const ok=Math.abs(d)<0.01;const excede=d<-0.01;return(
                   <div style={{padding:'10px 14px',borderRadius:'var(--r)',background:ok?'rgba(61,214,140,.08)':excede?'rgba(240,64,64,.08)':'rgba(245,166,35,.08)',border:`1px solid ${ok?'rgba(61,214,140,.3)':excede?'rgba(240,64,64,.3)':'rgba(245,166,35,.3)'}`,fontSize:12,display:'flex',justifyContent:'space-between',marginBottom:10}}>
                     <span style={{color:ok?'var(--success)':excede?'var(--danger)':'var(--warning)'}}>{ok?'✓ Valores conferem':excede?'⚠ Valor excede em':'Falta distribuir'}</span>
                     <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:ok?'var(--success)':excede?'var(--danger)':'var(--warning)'}}>{ok?'Tudo certo':fmtMoney(Math.abs(d))}</span>
                   </div>
-                );
-              }, null)}
+                );})()}
               <button className="btn btn-sm btn-outline" style={{width:'100%'}} onClick={addPayMethod}>+ Adicionar forma de pagamento</button>
             </div>
             <div className="modal-footer"><button className="btn btn-white" onClick={()=>setShowPayModal(false)}>Confirmar</button></div>
@@ -2157,7 +2151,7 @@ function NewSale() {
           </div>
 
           {/* Dinheiro — campo recebido + troco automático */}
-          {payMethods[0]?.method==='Dinheiro'&&(
+          {(payMethods[0]&&payMethods[0].method)==='Dinheiro'&&(
             <div style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--rl)',padding:16}}>
               <div style={{fontSize:10,letterSpacing:2,textTransform:'uppercase',color:'var(--subtext)',marginBottom:10}}>VALOR RECEBIDO</div>
               <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:10}}>
@@ -2190,7 +2184,7 @@ function NewSale() {
           )}
 
           {/* Pix */}
-          {payMethods[0]?.method==='Pix'&&(
+          {(payMethods[0]&&payMethods[0].method)==='Pix'&&(
             <div style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--rl)',padding:16,textAlign:'center'}}>
               <div style={{fontSize:24,marginBottom:6}}>📲</div>
               <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:22,color:'var(--text)'}}>{fmtMoney(total)}</div>
@@ -2199,7 +2193,7 @@ function NewSale() {
           )}
 
           {/* Cartão */}
-          {payMethods[0]?.method==='Cartão'&&(
+          {(payMethods[0]&&payMethods[0].method)==='Cartão'&&(
             <div style={{background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:'var(--rl)',padding:16,textAlign:'center'}}>
               <div style={{fontSize:24,marginBottom:6}}>💳</div>
               <div style={{fontFamily:'Bebas Neue,sans-serif',fontSize:22,color:'var(--text)'}}>{fmtMoney(total)}</div>
@@ -2208,7 +2202,7 @@ function NewSale() {
           )}
 
           {/* A prazo */}
-          {payMethods[0]?.method==='A prazo'&&(
+          {(payMethods[0]&&payMethods[0].method)==='A prazo'&&(
             <div style={{background:'rgba(245,166,35,.06)',border:'1px solid rgba(245,166,35,.25)',borderRadius:'var(--rl)',padding:16}}>
               <div style={{fontSize:11,color:'var(--warning)',fontWeight:600,letterSpacing:1,marginBottom:10,textTransform:'uppercase'}}>📋 Vencimento</div>
               <input type="date" value={payMethods[0].dueDate||''} onChange={e=>updatePayMethod(0,'dueDate',e.target.value)}
@@ -2261,7 +2255,7 @@ function NewSale() {
 // ITEM 1: Edição e exclusão de venda — só admin
 // helper: valor de um método específico em uma venda
 function getValorMetodo(s, method) {
-  if (s.paymentMethods?.length) {
+  if ((s.paymentMethods&&s.paymentMethods.length)) {
     return s.paymentMethods.filter(p=>p.method===method).reduce((a,p)=>a+(Number(p.value)||0),0);
   }
   return s.paymentMethod===method ? s.total : 0;
@@ -2345,7 +2339,7 @@ function NotificacoesAdm({ onClose }) {
                     </span>
                   </div>
                   <div style={{fontSize:12,color:'var(--g3)',marginBottom:6}}>
-                    Venda #{c.saleId?.slice(-6)} · {c.clientName} · <strong style={{color:'var(--text)'}}>{fmtMoney(c.saleTotal)}</strong>
+                    Venda #{(c.saleId&&c.saleId.slice(-6))} · {c.clientName} · <strong style={{color:'var(--text)'}}>{fmtMoney(c.saleTotal)}</strong>
                   </div>
                   <div style={{padding:'8px 10px',background:'var(--bg4)',borderRadius:'var(--r)',fontSize:12,color:'var(--text)',marginBottom:c.status==='pendente'?12:0}}>
                     📝 {c.motivo}
@@ -2385,7 +2379,7 @@ function SalesHistory() {
 
   const filtered = sales.filter(s=>
     (filterStore==='Todos'||s.store===filterStore) &&
-    (filterMethod==='Todos'||s.paymentMethod===filterMethod||s.paymentMethods?.some(p=>p.method===filterMethod)) &&
+    (filterMethod==='Todos'||s.paymentMethod===filterMethod||s.paymentMethods&&s.paymentMethods.some(p=>p.method===filterMethod)) &&
     (!filterDate||s.date.slice(0,10)===filterDate) &&
     (!search||(s.sellerName.toLowerCase().includes(search.toLowerCase())||(s.clientName||'').toLowerCase().includes(search.toLowerCase())))
   ).sort((a,b)=>new Date(b.date)-new Date(a.date));
@@ -2466,13 +2460,13 @@ function SalesHistory() {
               {paginated.map(s=>{
                 const isExp = expanded===s.id;
                 const isCancelada = s.status==='cancelada';
-                const payResume = s.paymentMethods?.length>1
+                const payResume = (s.paymentMethods&&s.paymentMethods.length)>1
                   ? s.paymentMethods.filter(p=>p.value>0).map(p=>`${p.method} ${fmtMoney(p.value)}`).join(' + ')
                   : s.paymentMethod;
                 return (
                   <React.Fragment key={s.id}>
                     <tr onClick={()=>setExpanded(isExp?null:s.id)}
-                      style={{cursor:'pointer',background:isExp?'var(--bg3)':isCancelada?'rgba(240,64,64,.03)':'transparent',opacity:isCancelada?.6:1}}>
+                      style={{cursor:'pointer',background:isExp?'var(--bg3)':isCancelada?'rgba(240,64,64,.03)':'transparent',opacity:isCancelada?0.6:1}}>
                       <td style={{textAlign:'center',color:'var(--g3)',fontSize:11,userSelect:'none'}}>{isExp?'▲':'▼'}</td>
                       <td style={{fontSize:12}}>{fmtDate(s.date)}</td>
                       <td style={{fontSize:12,color:'var(--text)'}}>{s.sellerName}</td>
@@ -2532,7 +2526,7 @@ function SalesHistory() {
                             </div>
                             <div>
                               <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:8}}>Forma de Pagamento</div>
-                              {s.paymentMethods?.length
+                              {(s.paymentMethods&&s.paymentMethods.length)
                                 ? s.paymentMethods.filter(p=>p.value>0).map((p,i)=>(
                                     <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'var(--bg4)',borderRadius:'var(--r)',marginBottom:6}}>
                                       <span style={{fontSize:12,color:'var(--text)',fontWeight:500}}>{p.method}</span>
@@ -2561,8 +2555,8 @@ function SalesHistory() {
               Página {page} de {totalPages} · {filtered.length} registros
             </div>
             <div style={{display:'flex',gap:6}}>
-              <button className="btn btn-sm btn-outline" onClick={()=>setPage(1)} disabled={page===1} style={{opacity:page===1?.4:1}}>«</button>
-              <button className="btn btn-sm btn-outline" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} style={{opacity:page===1?.4:1}}>‹ Anterior</button>
+              <button className="btn btn-sm btn-outline" onClick={()=>setPage(1)} disabled={page===1} style={{opacity:page===1?0.4:1}}>«</button>
+              <button className="btn btn-sm btn-outline" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} style={{opacity:page===1?0.4:1}}>‹ Anterior</button>
               {Array.from({length:Math.min(5,totalPages)},(_,i)=>{
                 let p;
                 if(totalPages<=5) p=i+1;
@@ -2573,8 +2567,8 @@ function SalesHistory() {
                   <button key={p} className={`btn btn-sm ${p===page?'btn-white':'btn-outline'}`} onClick={()=>setPage(p)}>{p}</button>
                 );
               })}
-              <button className="btn btn-sm btn-outline" onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages} style={{opacity:page===totalPages?.4:1}}>Próxima ›</button>
-              <button className="btn btn-sm btn-outline" onClick={()=>setPage(totalPages)} disabled={page===totalPages} style={{opacity:page===totalPages?.4:1}}>»</button>
+              <button className="btn btn-sm btn-outline" onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages} style={{opacity:page===totalPages?0.4:1}}>Próxima ›</button>
+              <button className="btn btn-sm btn-outline" onClick={()=>setPage(totalPages)} disabled={page===totalPages} style={{opacity:page===totalPages?0.4:1}}>»</button>
             </div>
           </div>
         )}
@@ -2589,7 +2583,7 @@ function SalesHistory() {
   const [note, setNote] = useState(sale.note||'');
   const [items, setItems] = useState(sale.items ? sale.items.map(i=>({...i})) : []);
   const [payMethods, setPayMethods] = useState(
-    sale.paymentMethods?.length ? sale.paymentMethods.map(p=>({...p})) : [{method:sale.paymentMethod||'Dinheiro',value:sale.total||0,dueDate:sale.dueDate||''}]
+    (sale.paymentMethods&&sale.paymentMethods.length) ? sale.paymentMethods.map(p=>({...p})) : [{method:sale.paymentMethod||'Dinheiro',value:sale.total||0,dueDate:sale.dueDate||''}]
   );
   const [searchProd, setSearchProd] = useState('');
 
@@ -2618,7 +2612,7 @@ function SalesHistory() {
     setSales(ss=>ss.map(s=>s.id===sale.id?{...s,clientName,channel,paid,note,items,
       subtotal,total:subtotal,paymentMethods:payMethods.map(p=>({...p,value:Number(p.value)||0})),
       paymentMethod:newPayMethod,paid:!hasPrazo||paid,
-      dueDate:payMethods.find(p=>p.method==='A prazo')?.dueDate||''}:s));
+      dueDate:(payMethods.find(p=>p.method==='A prazo')||{}).dueDate||''}:s));
     addToast('Venda atualizada!','success'); onClose();
   };
 
@@ -2713,11 +2707,11 @@ function Receivables() {
   // Todas as vendas a prazo (total ou parcial)
   const vendasAPrazo = sales.filter(s =>
     s.status !== 'cancelada' &&
-    (s.paymentMethod === 'A prazo' || s.paymentMethods?.some(p => p.method === 'A prazo'))
+    (s.paymentMethod === 'A prazo' || s.paymentMethods&&s.paymentMethods.some(p => p.method === 'A prazo'))
   );
 
   const getValorPrazo = (s) => {
-    if (s.paymentMethods?.length) {
+    if ((s.paymentMethods&&s.paymentMethods.length)) {
       const prazoMethods = s.paymentMethods.filter(p=>p.method==='A prazo');
       if (!prazoMethods.length) return 0;
       const soma = prazoMethods.reduce((a,p)=>a+(Number(p.value)||0),0);
@@ -2729,7 +2723,7 @@ function Receivables() {
   };
 
   const getDueDate = (s) => {
-    if (s.paymentMethods?.length) return s.paymentMethods.find(p=>p.method==='A prazo')?.dueDate || s.dueDate || '';
+    if ((s.paymentMethods&&s.paymentMethods.length)) return s.paymentMethods.find(p=>p.method==='A prazo')&&s.paymentMethods.find(p=>p.method==='A prazo').dueDate || s.dueDate || '';
     return s.dueDate || '';
   };
 
@@ -2752,7 +2746,7 @@ function Receivables() {
 
   const abrirWhatsApp = (s) => {
     const cli = clients.find(c=>c.id===s.clientId||c.name===s.clientName);
-    if(!cli?.phone) return addToast('Cliente sem telefone cadastrado','error');
+    if(!(cli&&cli.phone)) return addToast('Cliente sem telefone cadastrado','error');
     const valorPrazo = getValorPrazo(s);
     const venc = getDueDate(s) ? fmtDate(getDueDate(s)) : 'a combinar';
     const overdue = isOverdue(s);
@@ -2976,7 +2970,7 @@ function Stock() {
     const codigoBase = (form.code||'').trim() || gerarCodigo();
 
     if(modal==='add'){
-      if(form.temVariacaoMultipla && form.variacoes?.length>0) {
+      if(form.temVariacaoMultipla && form.variacoes&&form.variacoes.length>0) {
         // Criar um produto por variação, cada um com código único
         const novos = form.variacoes.map((v,i)=>{
           const codVar = codigoBase+'-'+v.nome.toUpperCase().replace(/\s+/g,'');
@@ -3133,8 +3127,8 @@ function Stock() {
                 Página {stockPage} de {stockTotalPages} · {filtered.length} produtos
               </div>
               <div style={{display:'flex',gap:6}}>
-                <button className="btn btn-sm btn-outline" onClick={()=>setStockPage(1)} disabled={stockPage===1} style={{opacity:stockPage===1?.4:1}}>«</button>
-                <button className="btn btn-sm btn-outline" onClick={()=>setStockPage(p=>Math.max(1,p-1))} disabled={stockPage===1} style={{opacity:stockPage===1?.4:1}}>‹</button>
+                <button className="btn btn-sm btn-outline" onClick={()=>setStockPage(1)} disabled={stockPage===1} style={{opacity:stockPage===1?0.4:1}}>«</button>
+                <button className="btn btn-sm btn-outline" onClick={()=>setStockPage(p=>Math.max(1,p-1))} disabled={stockPage===1} style={{opacity:stockPage===1?0.4:1}}>‹</button>
                 {Array.from({length:Math.min(5,stockTotalPages)},(_,i)=>{
                   let p;
                   if(stockTotalPages<=5) p=i+1;
@@ -3143,8 +3137,8 @@ function Stock() {
                   else p=stockPage-2+i;
                   return <button key={p} className={`btn btn-sm ${p===stockPage?'btn-white':'btn-outline'}`} onClick={()=>setStockPage(p)}>{p}</button>;
                 })}
-                <button className="btn btn-sm btn-outline" onClick={()=>setStockPage(p=>Math.min(stockTotalPages,p+1))} disabled={stockPage===stockTotalPages} style={{opacity:stockPage===stockTotalPages?.4:1}}>›</button>
-                <button className="btn btn-sm btn-outline" onClick={()=>setStockPage(stockTotalPages)} disabled={stockPage===stockTotalPages} style={{opacity:stockPage===stockTotalPages?.4:1}}>»</button>
+                <button className="btn btn-sm btn-outline" onClick={()=>setStockPage(p=>Math.min(stockTotalPages,p+1))} disabled={stockPage===stockTotalPages} style={{opacity:stockPage===stockTotalPages?0.4:1}}>›</button>
+                <button className="btn btn-sm btn-outline" onClick={()=>setStockPage(stockTotalPages)} disabled={stockPage===stockTotalPages} style={{opacity:stockPage===stockTotalPages?0.4:1}}>»</button>
               </div>
             </div>
           )}
@@ -3152,7 +3146,7 @@ function Stock() {
       </>}
 
       {stockTab==='reposicao' && <ReposicaoUrgente products={products} sales={sales} onEdit={isAdmin?openEdit:null}
-        onDarEntrada={isAdmin?(p)=>{setAdjust({productId:p.lojas?.[0]?.id||p.id,type:'entrada',qty:0,note:''});setAdjustSearch(p.description);setModal('adjust');}:null}
+        onDarEntrada={isAdmin?(p)=>{setAdjust({productId:(p.lojas&&p.lojas[0]&&p.lojas[0].id)||p.id,type:'entrada',qty:0,note:''});setAdjustSearch(p.description);setModal('adjust');}:null}
       />}
 
       {(modal==='add'||modal==='edit')&&(
@@ -3184,7 +3178,7 @@ function Stock() {
                     className={`btn btn-sm ${!form.temVariacao&&!form.temVariacaoMultipla?'btn-white':'btn-outline'}`}>Tamanho Único</button>
                   <button type="button" onClick={()=>setForm(f=>({...f,temVariacao:true,temVariacaoMultipla:false}))}
                     className={`btn btn-sm ${form.temVariacao&&!form.temVariacaoMultipla?'btn-white':'btn-outline'}`}>1 Tamanho</button>
-                  <button type="button" onClick={()=>setForm(f=>({...f,temVariacao:true,temVariacaoMultipla:true,variacoes:f.variacoes?.length?f.variacoes:[{nome:'',qty:0}]}))}
+                  <button type="button" onClick={()=>setForm(f=>({...f,temVariacao:true,temVariacaoMultipla:true,variacoes:f.variacoes&&f.variacoes.length?f.variacoes:[{nome:'',qty:0}]}))}
                     className={`btn btn-sm ${form.temVariacaoMultipla?'btn-white':'btn-outline'}`}>+ Variações</button>
                 </div>
 
@@ -3278,7 +3272,7 @@ function Stock() {
             </div></div>
             <div className="form-row"><div className="form-field"><label>Quantidade</label><input type="number" min="1" value={transfer.qty} onChange={e=>setTransfer(t=>({...t,qty:parseInt(e.target.value)||1}))}/></div></div>
             {transfer.productId&&<div style={{padding:10,background:'var(--bg3)',borderRadius:'var(--r)',fontSize:12,color:'var(--g3)'}}>
-              Destino: <strong style={{color:'var(--text)'}}>{products.find(p=>p.id===transfer.productId)?.store==='Cosmos'?'Nova Cidade':'Cosmos'}</strong>
+              Destino: <strong style={{color:'var(--text)'}}>{products.find(p=>p.id===transfer.productId)&&products.find(p=>p.id===transfer.productId).store==='Cosmos'?'Nova Cidade':'Cosmos'}</strong>
             </div>}
           </div>
           <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setModal(null)}>Cancelar</button><button className="btn btn-white" onClick={doTransfer}>Transferir</button></div>
@@ -3307,7 +3301,7 @@ function Stock() {
                 </div>
               )}
               {adjust.productId && <div style={{padding:'8px 12px',background:'rgba(68,255,136,.06)',border:'1px solid rgba(68,255,136,.2)',borderRadius:'var(--r)',fontSize:12,color:'var(--success)'}}>
-                ✓ {products.find(p=>p.id===adjust.productId)?.description} — {products.find(p=>p.id===adjust.productId)?.qty} em estoque
+                ✓ {products.find(p=>p.id===adjust.productId)&&products.find(p=>p.id===adjust.productId).description} — {products.find(p=>p.id===adjust.productId)&&products.find(p=>p.id===adjust.productId).qty} em estoque
               </div>}
             </div></div>
             <div className="form-row cols-2">
@@ -3339,7 +3333,7 @@ function Stock() {
               <thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Qtd</th><th>Obs.</th></tr></thead>
               <tbody>{[...history].reverse().map(h=>{
                 const prod=products.find(p=>p.id===h.productId);
-                return (<tr key={h.id}><td style={{fontSize:11}}>{fmtDate(h.date)}</td><td style={{color:'var(--text)',fontSize:12}}>{prod?.description||'—'}</td><td><span className={`badge ${h.type==='entrada'?'badge-green':h.type==='saída'?'badge-red':'badge-blue'}`}>{h.type}</span></td><td style={{color:'var(--text)'}}>{h.qty}</td><td style={{color:'var(--g3)',fontSize:11}}>{h.note}</td></tr>);
+                return (<tr key={h.id}><td style={{fontSize:11}}>{fmtDate(h.date)}</td><td style={{color:'var(--text)',fontSize:12}}>{(prod&&prod.description)||'—'}</td><td><span className={`badge ${h.type==='entrada'?'badge-green':h.type==='saída'?'badge-red':'badge-blue'}`}>{h.type}</span></td><td style={{color:'var(--text)'}}>{h.qty}</td><td style={{color:'var(--g3)',fontSize:11}}>{h.note}</td></tr>);
               })}</tbody>
             </table></div>}
           </div>
@@ -3358,7 +3352,7 @@ function ReposicaoUrgente({ products, sales, onEdit, onDarEntrada }) {
   const vendasPorCodigo = {};
   vendasRecentes.forEach(s=>(s.items||[]).forEach(item=>{
     const prod = products.find(p=>p.id===item.productId);
-    const key = prod?.code||item.productId;
+    const key = (prod&&prod.code)||item.productId;
     vendasPorCodigo[key]=(vendasPorCodigo[key]||0)+item.qty;
   }));
   // consolidar estoque por código
@@ -3422,7 +3416,7 @@ function ReposicaoUrgente({ products, sales, onEdit, onDarEntrada }) {
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{p.description}</div>
                   <div style={{fontSize:10,color:'var(--g3)',marginTop:2}}>{p.code}
-                    {p.lojas?.length>1 && p.lojas.map(l=>(
+                    {p.lojas&&p.lojas.length>1 && p.lojas.map(l=>(
                       <span key={l.id} style={{marginLeft:8,background:'var(--bg3)',border:'1px solid var(--bg5)',borderRadius:3,padding:'1px 5px'}}>{l.store}: {l.qty}</span>
                     ))}
                   </div>
@@ -3683,7 +3677,7 @@ function Rankings() {
     const totalPecas = monthSalesArr.reduce((a,x)=>a+(x.items||[]).reduce((b,i)=>b+i.qty,0),0);
     const pa = monthSalesArr.length ? (totalPecas/monthSalesArr.length).toFixed(1) : '0';
     const ticket = monthSalesArr.length ? monthTotal/monthSalesArr.length : 0;
-    return {...s,total,count:allSales.length,monthTotal,goal:goal?.goal||0,pct,pa,ticket,monthCount:monthSalesArr.length};
+    return {...s,total,count:allSales.length,monthTotal,goal:(goal&&goal.goal)||0,pct,pa,ticket,monthCount:monthSalesArr.length};
   }).sort((a,b)=>b.monthTotal-a.monthTotal);
 
   // ITEM 4: ranking clientes
@@ -3856,7 +3850,7 @@ function Returns() {
   const [showAutoTroca, setShowAutoTroca] = useState(false);
   const [confirm, setConfirm] = useState(null);
 
-  const saleItems = selSaleId ? (sales.find(s=>s.id===selSaleId)?.items||[]) : [];
+  const saleItems = selSaleId ? ((sales.find(s=>s.id===selSaleId)||{items:[]}).items||[]) : [];
   const totalDev = trocaDev.reduce((a,i)=>a+i.unitPrice*i.qty,0);
   const totalNova = trocaNova.reduce((a,i)=>a+i.unitPrice*i.qty,0);
   const diff = totalNova - totalDev;
@@ -3874,7 +3868,7 @@ function Returns() {
       onConfirm: () => {
         const totalEstorno=selItems.reduce((a,it)=>a+it.unitPrice*it.qty,0);
         const sale=sales.find(s=>s.id===selSaleId);
-        const reg={id:'ret'+Date.now(),type:'devolucao',date:new Date().toISOString(),saleId:selSaleId,sellerName:sale?.sellerName||'',store:sale?.store||'',items:selItems,motivo,estornar,totalEstorno:estornar?totalEstorno:0};
+        const reg={id:'ret'+Date.now(),type:'devolucao',date:new Date().toISOString(),saleId:selSaleId,sellerName:(sale&&sale.sellerName)||'',store:(sale&&sale.store)||'',items:selItems,motivo,estornar,totalEstorno:estornar?totalEstorno:0};
         setReturns(r=>[...r,reg]);
         setProducts(ps=>ps.map(p=>{const it=selItems.find(i=>i.productId===p.id);return it?{...p,qty:p.qty+it.qty}:p;}));
         selItems.forEach(it=>addMovement(it.productId,'devolução',it.qty,'Devolução: '+motivo));
@@ -3890,7 +3884,7 @@ function Returns() {
       icon:'⇄', titulo:'Confirmar Troca', msg:`Confirmar troca? ${diff===0?'Valores iguais.':diff>0?`Cliente paga +${fmtMoney(diff)}.`:`Devolver ${fmtMoney(Math.abs(diff))} ao cliente.`}`,
       btnLabel:'Confirmar', btnClass:'btn-white',
       onConfirm: () => {
-        const reg={id:'exc'+Date.now(),type:'troca',date:new Date().toISOString(),store:trocaDev[0]?.store||'',itemsDevolvidos:trocaDev,itemsNovos:trocaNova,totalDevolvido:totalDev,totalNovo:totalNova,diferenca:diff};
+        const reg={id:'exc'+Date.now(),type:'troca',date:new Date().toISOString(),store:(trocaDev[0]&&trocaDev[0].store)||'',itemsDevolvidos:trocaDev,itemsNovos:trocaNova,totalDevolvido:totalDev,totalNovo:totalNova,diferenca:diff};
         setReturns(r=>[...r,reg]);
         setProducts(ps=>ps.map(p=>{const dev=trocaDev.find(i=>i.productId===p.id);const novo=trocaNova.find(i=>i.productId===p.id);let qty=p.qty;if(dev)qty+=dev.qty;if(novo)qty=Math.max(0,qty-novo.qty);return {...p,qty};}));
         trocaDev.forEach(it=>addMovement(it.productId,'devolução troca',it.qty,'Troca'));
@@ -4022,19 +4016,19 @@ function Cashflow() {
   const isAdmin = currentUser.role === 'admin';
   const [filterStore, setFilterStore] = useState('Todos');
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({description:'',amount:'',store: lojas?.[0]||'Cosmos',category:'Aluguel',date:new Date().toISOString().slice(0,10)});
+  const [form, setForm] = useState({description:'',amount:'',store: (lojas&&lojas[0])||'Cosmos',category:'Aluguel',date:new Date().toISOString().slice(0,10)});
   const [confirm, setConfirm] = useState(null);
   const {m,y} = thisMonth();
 
   // Helper: valor à vista de uma venda (exclui a prazo)
   const valorAVista = (s) => {
-    if (s.paymentMethods?.length) return s.paymentMethods.filter(p=>p.method!=='A prazo').reduce((a,p)=>a+(Number(p.value)||0),0);
+    if ((s.paymentMethods&&s.paymentMethods.length)) return s.paymentMethods.filter(p=>p.method!=='A prazo').reduce((a,p)=>a+(Number(p.value)||0),0);
     return s.paymentMethod === 'A prazo' ? 0 : s.total;
   };
   // Helper: valor a prazo já pago
   const valorPrazoRecebido = (s) => {
     if (!s.paidAt) return 0;
-    if (s.paymentMethods?.length) return s.paymentMethods.filter(p=>p.method==='A prazo').reduce((a,p)=>a+(Number(p.value)||0),0);
+    if ((s.paymentMethods&&s.paymentMethods.length)) return s.paymentMethods.filter(p=>p.method==='A prazo').reduce((a,p)=>a+(Number(p.value)||0),0);
     return s.paymentMethod === 'A prazo' ? s.total : 0;
   };
 
@@ -4061,7 +4055,7 @@ function Cashflow() {
   const totalOut = filtExp.reduce((a,e)=>a+(Number(e.amount)||0),0);
 
   const openModal = () => {
-    setForm({description:'',amount:'',store:lojas?.[0]||'Cosmos',category:'Aluguel',date:new Date().toISOString().slice(0,10)});
+    setForm({description:'',amount:'',store:(lojas&&lojas[0])||'Cosmos',category:'Aluguel',date:new Date().toISOString().slice(0,10)});
     setModal(true);
   };
 
@@ -4194,12 +4188,12 @@ function CashflowGeral() {
   const nomeMes = m => new Date(2000,m,1).toLocaleDateString('pt-BR',{month:'long'});
 
   const valorAVista = (s) => {
-    if (s.paymentMethods?.length) return s.paymentMethods.filter(p=>p.method!=='A prazo').reduce((a,p)=>a+(Number(p.value)||0),0);
+    if ((s.paymentMethods&&s.paymentMethods.length)) return s.paymentMethods.filter(p=>p.method!=='A prazo').reduce((a,p)=>a+(Number(p.value)||0),0);
     return s.paymentMethod === 'A prazo' ? 0 : s.total;
   };
   const valorPrazoRecebido = (s) => {
     if (!s.paidAt) return 0;
-    if (s.paymentMethods?.length) return s.paymentMethods.filter(p=>p.method==='A prazo').reduce((a,p)=>a+(Number(p.value)||0),0);
+    if ((s.paymentMethods&&s.paymentMethods.length)) return s.paymentMethods.filter(p=>p.method==='A prazo').reduce((a,p)=>a+(Number(p.value)||0),0);
     return s.paymentMethod === 'A prazo' ? s.total : 0;
   };
 
@@ -4243,7 +4237,7 @@ function CashflowGeral() {
       <div className="card"><div className="table-wrap"><table>
         <thead><tr><th>Mês</th><th>Vendas</th><th>Entradas</th><th>Estornos</th><th>Despesas</th><th>Lucro</th></tr></thead>
         <tbody>
-          {rows.map(r=>(<tr key={r.m} style={{opacity:r.vendas===0&&r.saidas===0?.4:1}}><td style={{fontWeight:600,color:'var(--text)',textTransform:'capitalize'}}>{nomeMes(r.m)}</td><td style={{color:'var(--g3)',fontSize:12}}>{r.vendas}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--success)',fontSize:12}}>{fmtMoney(r.entradas)}</td><td style={{fontFamily:'DM Mono,monospace',color:'var(--warning)',fontSize:12}}>{r.estornos>0?'-'+fmtMoney(r.estornos):'—'}</td><td style={{fontFamily:'DM Mono,monospace',color:'var(--danger)',fontSize:12}}>{r.saidas>0?fmtMoney(r.saidas):'—'}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:r.lucro>=0?'var(--text)':'var(--danger)',fontSize:13}}>{fmtMoney(r.lucro)}</td></tr>))}
+          {rows.map(r=>(<tr key={r.m} style={{opacity:r.vendas===0&&r.saidas===0?0.4:1}}><td style={{fontWeight:600,color:'var(--text)',textTransform:'capitalize'}}>{nomeMes(r.m)}</td><td style={{color:'var(--g3)',fontSize:12}}>{r.vendas}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:600,color:'var(--success)',fontSize:12}}>{fmtMoney(r.entradas)}</td><td style={{fontFamily:'DM Mono,monospace',color:'var(--warning)',fontSize:12}}>{r.estornos>0?'-'+fmtMoney(r.estornos):'—'}</td><td style={{fontFamily:'DM Mono,monospace',color:'var(--danger)',fontSize:12}}>{r.saidas>0?fmtMoney(r.saidas):'—'}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:r.lucro>=0?'var(--text)':'var(--danger)',fontSize:13}}>{fmtMoney(r.lucro)}</td></tr>))}
           <tr style={{borderTop:'2px solid var(--bg5)'}}><td style={{fontFamily:'Bebas Neue,sans-serif',letterSpacing:2,color:'var(--text)'}}>TOTAL</td><td style={{fontWeight:700,color:'var(--text)'}}>{totais.vendas}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--success)'}}>{fmtMoney(totais.entradas)}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--warning)'}}>{totais.estornos>0?'-'+fmtMoney(totais.estornos):'—'}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--danger)'}}>{fmtMoney(totais.saidas)}</td><td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:totais.lucro>=0?'var(--text)':'var(--danger)',fontSize:15}}>{fmtMoney(totais.lucro)}</td></tr>
         </tbody>
       </table></div></div>
@@ -4267,7 +4261,7 @@ function Employees() {
     if(!form.name) return addToast('Informe o nome','error');
     if(!editId&&!form.password) return addToast('Informe a senha','error');
     if(editId) {
-      const updated = sellers.map(s=>s.id===editId?{...s,...form,photo:photoPreview??s.photo}:s);
+      const updated = sellers.map(s=>s.id===editId?{...s,...form,photo:photoPreview||s.photo}:s);
       setSellers(updated);
       // Atualizar currentUser se for o próprio usuário editando
       updateCurrentUser(updated);
@@ -4335,7 +4329,7 @@ function Employees() {
           <div className="modal-body">
             <div style={{display:'flex',flexDirection:'column',alignItems:'center',marginBottom:18}}>
               <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{setPhotoPreview(ev.target.result);setForm(f=>({...f,photo:ev.target.result}))};reader.readAsDataURL(file);}}/>
-              <div className="photo-upload" onClick={()=>fileRef.current?.click()}>
+              <div className="photo-upload" onClick={()=>fileRef.current&&fileRef.current.click()}>
                 {photoPreview&&<img src={photoPreview} alt=""/>}
                 <div className="photo-upload-ov"><span style={{fontSize:18}}>📷</span></div>
                 {!photoPreview&&<span style={{fontSize:26,color:'var(--g2)'}}>+</span>}
@@ -4451,7 +4445,7 @@ function Goals() {
   const handleDelete = (g, seller) => {
     setConfirm({
       icon:'🗑️', titulo:'Excluir Meta',
-      msg:`Excluir meta de ${fmtMoney(g.goal)} de ${seller?.name||'?'} em ${months[g.month]}/${g.year}?`,
+      msg:`Excluir meta de ${fmtMoney(g.goal)} de ${(seller&&seller.name)||'?'} em ${months[g.month]}/${g.year}?`,
       btnLabel:'Excluir', btnClass:'btn-danger',
       onConfirm: () => {
         setGoals(gs=>gs.filter(x=>!(x.sellerId===g.sellerId&&x.month===g.month&&x.year===g.year)));
@@ -4471,7 +4465,7 @@ function Goals() {
     return {seller:s, anos:anos2.map(y=>({y,meses:Array.from({length:12},(_,m)=>{
       const g=goals.find(gg=>gg.sellerId===s.id&&gg.month===m&&gg.year===y);
       const vend=sales.filter(s2=>s2.sellerId===s.id&&isSameMonth(s2.date,m,y)).reduce((a,s2)=>a+s2.total,0);
-      return {m,meta:g?.goal||0,vendido:vend,atingiu:g&&vend>=g.goal};
+      return {m,meta:(g&&g.goal)||0,vendido:vend,atingiu:g&&vend>=g.goal};
     })}))};
   }).filter(s=>s.anos.length>0);
 
@@ -4518,7 +4512,7 @@ function Goals() {
         <tbody>{goals.map((g,i)=>{
           const seller=sellers.find(s=>s.id===g.sellerId);
           return (<tr key={i}>
-            <td><div className="flex items-center gap-8"><div className="rank-avatar" style={{width:26,height:26,fontSize:10}}>{seller?.photo?<img src={seller.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(seller?.name||'?')}</div><span style={{color:'var(--text)'}}>{seller?.name||'—'}</span></div></td>
+            <td><div className="flex items-center gap-8"><div className="rank-avatar" style={{width:26,height:26,fontSize:10}}>{(seller&&seller.photo)?<img src={seller.photo} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials((seller&&seller.name)||'?')}</div><span style={{color:'var(--text)'}}>{(seller&&seller.name)||'—'}</span></div></td>
             <td style={{color:'var(--text)',fontSize:12}}>{months[g.month]} / {g.year}</td>
             <td style={{fontFamily:'DM Mono,monospace',fontWeight:700,color:'var(--text)'}}>{fmtMoney(g.goal)}</td>
             <td style={{fontFamily:'DM Mono,monospace',fontSize:11,color:'var(--g3)'}}>{fmtMoney(g.goal/4)}</td>
@@ -4631,7 +4625,7 @@ function Reservas() {
                     <td style={{textAlign:'center',color:'var(--g3)',fontSize:11}}>{isExp?'▲':'▼'}</td>
                     <td>
                       <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        {prod?.photo
+                        {(prod&&prod.photo)
                           ? <img src={prod.photo} style={{width:30,height:30,borderRadius:4,objectFit:'cover'}} alt=""/>
                           : <div style={{width:30,height:30,borderRadius:4,background:'var(--bg4)',display:'flex',alignItems:'center',justifyContent:'center',opacity:.3,fontSize:13}}>▦</div>
                         }
@@ -4664,7 +4658,7 @@ function Reservas() {
                           <div>
                             <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'var(--g3)',marginBottom:8}}>Produto Reservado</div>
                             <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:10}}>
-                              {prod?.photo&&<img src={prod.photo} style={{width:48,height:48,borderRadius:6,objectFit:'cover'}} alt=""/>}
+                              {(prod&&prod.photo)&&<img src={prod.photo} style={{width:48,height:48,borderRadius:6,objectFit:'cover'}} alt=""/>}
                               <div>
                                 <div style={{fontWeight:700,fontSize:14,color:'var(--text)'}}>{r.produtoNome}</div>
                                 <div style={{fontSize:11,color:'var(--g3)'}}>{r.produtoCodigo}</div>
@@ -4731,7 +4725,7 @@ function Fidelidade() {
     const totalGasto = cs.reduce((a,s)=>a+s.total,0);
     const pontosGanhos = Math.floor(totalGasto * (fidelidadeConfig.pontosPorReal||1));
     const c = clients.find(x=>x.id===clientId);
-    const pontosResgatados = c?.pontosResgatados||0;
+    const pontosResgatados = (c&&c.pontosResgatados)||0;
     return Math.max(0, pontosGanhos - pontosResgatados);
   };
 
@@ -4954,7 +4948,7 @@ function WhatsApp() {
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontWeight:600,color:'var(--text)',fontSize:13}}>{c.name}</div>
                 <div style={{fontSize:11,color:'var(--subtext)'}}>
-                  {tab==='posVenda'&&`📅 Comprou há ${c.dias} dia(s) · ${fmtMoney(c.ultimaCompra?.total||0)}`}
+                  {tab==='posVenda'&&`📅 Comprou há ${c.dias} dia(s) · ${fmtMoney((c.ultimaCompra&&c.ultimaCompra.total)||0)}`}
                   {tab==='aniversariantes'&&`🎂 Aniversário em ${new Date(c.dataNasc).toLocaleDateString('pt-BR',{day:'2-digit',month:'long'})}`}
                   {tab==='inativos'&&`⏱ Sem comprar há ${c.diasSemCompra} dias`}
                 </div>
